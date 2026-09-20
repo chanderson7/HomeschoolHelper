@@ -13,6 +13,12 @@ sh scripts/build-ios.sh
 
 The build script uses a generic iOS Simulator destination, disables signing for that build, and writes derived data under ignored `.build/xcode/`. Core tests use unique temporary directories for persistence fixtures; they do not touch the app's household records.
 
+## GitHub verification
+
+The `Verify` GitHub Actions workflow runs on pushes, pull requests and manual dispatch. Two independent macOS jobs run the domain/store tests and build the iOS Simulator app without signing. Both select Xcode 26.3 on `macos-15`; the scripts respect an explicit `DEVELOPER_DIR`. Update that version deliberately if the runner image removes it.
+
+No signing credentials or repository write permissions are required. Job timeouts and cancellation of superseded runs limit wasted runner time. GitHub's Actions tab contains results and logs. These checks do not execute the manual UI walkthrough or publish the app. Branch protection is not configured by this workflow; require both checks in repository rules to block merges on failures.
+
 ## Manual acceptance walkthrough
 
 1. Start from the empty household and add two students in Family.
