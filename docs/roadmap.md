@@ -53,11 +53,11 @@ Exit: permissions, restore, sync/conflict, and lifecycle behavior are verified b
 
 | Decision | Current position | Required evidence |
 |---|---|---|
-| Minimum iOS/device support | Unselected | Audience/device needs and API tradeoffs |
-| Local database | Unselected; behind interfaces | Relationships, migrations, sync compatibility |
+| Minimum iOS/device support | Initial slice: iOS 17, iPhone and iPad | Validate layouts and audience/device needs before release |
+| Local database | Initial slice: versioned atomic JSON behind repository interface | Evaluate database migration when relationships, data volume or sync require it |
 | Cloud provider | Deferred | Identity, access, conflict, attachment and cost requirements |
 | Missed-day policy | Preview and confirm | Extend vs compress; workload limits; fixed dates |
-| Partial completion | Required, semantics unresolved | Family workflows and data invariants |
+| Partial completion | Initial slice: in-progress status without percentage or attendance | Validate richer progress semantics with families |
 | Attendance aggregation | Explicit confirmation | Multi-activity/day deduplication and time rules |
 | Grading policies | Configurable and versioned | Scales, rounding, weighting, missing/excused work |
 | Credit finalization | Separate from completion | Parent approval and correction workflow |

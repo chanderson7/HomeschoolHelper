@@ -4,3 +4,8 @@ __pycache__/
 .env
 .env.*
 !.env.example
+.build/
+.swiftpm/
+DerivedData/
+*.xcuserstate
+xcuserdata/

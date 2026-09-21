@@ -1,12 +1,25 @@
 # HomeSchoolHelper
 
-Baseline v0.1 · September 20, 2026
+First native milestone · September 20, 2026
 
-An iOS homeschool planning and recordkeeping concept centered on a dependable cycle:
+An iOS homeschool planning and recordkeeping app in early development, centered on a dependable cycle:
 
 **Plan → teach → adjust → record → export.**
 
-This repository currently contains design prototypes and planning documentation. It does **not** contain a production iOS app, backend, authentication, payments, durable user storage, or real transcript export.
+The repository includes a SwiftUI iOS app, a tested domain layer, local JSON persistence, and the original design baseline. This is an early engineering milestone, not a production release. There is no backend, authentication, payments, cloud sync, or transcript export yet.
+
+## Run the native app
+
+Open `HomeSchoolHelper.xcodeproj` in Xcode 26+ and choose the `HomeSchoolHelper` scheme and an iPhone simulator. The app targets iOS 17+. Physical devices require your own signing team.
+
+```sh
+sh scripts/test-core.sh
+sh scripts/build-ios.sh
+```
+
+Implemented: add students; create shared lesson sequences with independent assignments; dated or flexible planning; planned/in-progress/completed/skipped status; explicit attendance; retrospective multi-child activity logs; save and reload local records. Failed loads block editing, and failed saves retain the last saved state.
+
+See [development instructions](docs/development.md), [milestone contract](docs/implementation-contract.md), and [implementation report](docs/implementation-report.md) for verification and limits.
 
 ## Start here
 
@@ -27,7 +40,7 @@ The editable fragment is [design/source/homeschool-screen-prototypes.html](desig
 
 ## Baseline decisions
 
-- SwiftUI is the proposed native UI framework; no iOS deployment target is chosen yet.
+- SwiftUI and iOS 17+ are selected for the first native milestone; see [ADR 0001](docs/decisions/0001-local-first-milestone.md).
 - Begin with a modular monolith and local persistence behind storage interfaces.
 - Separate reusable lesson definitions from student assignments and completion records.
 - Keep attendance, grades, and credits explicit; completion alone does not create them.
@@ -35,6 +48,8 @@ The editable fragment is [design/source/homeschool-screen-prototypes.html](desig
 - Preserve finalized report snapshots and grading-policy versions.
 - Introduce backup and recovery before multi-user cloud editing.
 - Treat $29/year per household as a pricing hypothesis, not an approved commercial offer.
+
+The principles above include future requirements. Advanced rescheduling, finalized academic records, exports, backup/restore, and cloud sharing are not implemented in this milestone.
 
 ## Future changes
 
