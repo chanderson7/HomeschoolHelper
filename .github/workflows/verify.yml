@@ -43,3 +43,28 @@ jobs:
         run: plutil -lint HomeSchoolHelper.xcodeproj/project.pbxproj
       - name: Build app without signing
         run: sh scripts/build-ios.sh
+
+  ui-tests:
+    name: iOS UI tests (${{ matrix.device }})
+    runs-on: macos-15
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [iPhone 17, iPhone 16e]
+    env:
+      HSH_TEST_DESTINATION: platform=iOS Simulator,name=${{ matrix.device }},OS=latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Run family workflow and accessibility smoke tests
+        run: sh scripts/test-ui.sh -resultBundlePath .build/ui-tests.xcresult
+      - name: Upload UI test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-test-results-${{ matrix.device }}
+          path: .build/ui-tests.xcresult
+          retention-days: 7
+          if-no-files-found: warn

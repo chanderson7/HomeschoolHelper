@@ -10,6 +10,14 @@ struct HomeSchoolHelperApp: App {
             HomeTabView()
                 .environmentObject(store)
                 .tint(Sage.accent)
+                #if DEBUG
+                .preferredColorScheme(ProcessInfo.processInfo.environment["HSH_UI_TEST_DARK_MODE"] == "1" ? .dark : nil)
+                .transformEnvironment(\.dynamicTypeSize) { size in
+                    if ProcessInfo.processInfo.environment["HSH_UI_TEST_LARGE_TEXT"] == "1" {
+                        size = .accessibility3
+                    }
+                }
+                #endif
         }
     }
 }

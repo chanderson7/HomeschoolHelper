@@ -12,12 +12,16 @@ struct HomeTabView: View {
                 TabView {
                     TodayView()
                         .tabItem { Label("Today", systemImage: "sun.max") }
+                        .accessibilityIdentifier("tabToday")
                     PlanView()
                         .tabItem { Label("Plan", systemImage: "calendar") }
+                        .accessibilityIdentifier("tabPlan")
                     RecordsView()
                         .tabItem { Label("Records", systemImage: "folder") }
+                        .accessibilityIdentifier("tabRecords")
                     FamilyView()
                         .tabItem { Label("Family", systemImage: "person.2") }
+                        .accessibilityIdentifier("tabFamily")
                 }
             }
         }
@@ -179,7 +183,8 @@ private struct AssignmentCard: View {
             .background(.background, in: RoundedRectangle(cornerRadius: 18))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(lesson?.title ?? "Lesson"), \(statusTitle)")
+        .accessibilityLabel("\(lesson?.title ?? "Lesson") for \(store.student(for: assignment.studentID)?.name ?? "learner"), \(statusTitle)")
+        .accessibilityIdentifier("assignment-\(store.student(for: assignment.studentID)?.name ?? "unknown")-\(lesson?.title ?? "missing")")
         .sheet(isPresented: $showStatus) { AssignmentStatusSheet(assignment: assignment) }
     }
 }
@@ -208,6 +213,7 @@ private struct AssignmentStatusSheet: View {
                         ForEach(AssignmentStatus.allCases, id: \.self) { Text($0.readable).tag($0) }
                     }
                     .pickerStyle(.menu)
+                    .accessibilityIdentifier("assignmentStatusPicker")
                 }
                 if status == .completed {
                     Section("Completion") {
@@ -334,6 +340,7 @@ private struct SequenceBuilderView: View {
                 }
                 Section("Schedule") {
                     Toggle("Put lessons on a calendar", isOn: $datesLessons)
+                        .accessibilityIdentifier("datedLessonSchedule")
                     if datesLessons {
                         DatePicker("Start date", selection: $startDate, displayedComponents: .date)
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 58), spacing: 8)], spacing: 8) {
@@ -352,6 +359,7 @@ private struct SequenceBuilderView: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Build Sequence")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: dismiss.callAsFunction) }
@@ -448,7 +456,9 @@ private struct AttendanceView: View {
                             Text("Choose learner").tag(UUID?.none)
                             ForEach(store.state.students) { Text($0.name).tag(Optional($0.id)) }
                         }
+                        .accessibilityIdentifier("attendanceLearner")
                         DatePicker("Day", selection: $day, displayedComponents: .date)
+                            .accessibilityIdentifier("attendanceDay")
                         TextField("Instructional minutes", value: $minutes, format: .number)
                             .keyboardType(.numberPad)
                             .accessibilityIdentifier("attendanceMinutes")
@@ -503,8 +513,11 @@ private struct ActivityLogView: View {
                 }
                 Section("Activity") {
                     TextField("What did you learn?", text: $title)
+                        .accessibilityIdentifier("activityTitle")
                     DatePicker("Day", selection: $day, displayedComponents: .date)
+                        .accessibilityIdentifier("activityDay")
                     Stepper("Minutes: \(minutes)", value: $minutes, in: 0...1440)
+                        .accessibilityIdentifier("activityMinutes")
                 }
                 Section("Learners") {
                     ForEach(store.state.students) { student in

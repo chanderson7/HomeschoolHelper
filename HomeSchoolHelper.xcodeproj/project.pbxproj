@@ -4,12 +4,24 @@
 	classes = {};
 	objectVersion = 77;
 	objects = {
+ B10000000000000000000001 = {isa = PBXFileSystemSynchronizedRootGroup; path = iOS/HomeSchoolHelperUITests; sourceTree = "<group>"; };
+ B10000000000000000000002 = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HomeSchoolHelperUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+ B10000000000000000000003 = {isa = PBXNativeTarget; buildConfigurationList = B10000000000000000000004; buildPhases = (B10000000000000000000005,B10000000000000000000006,B10000000000000000000007,); buildRules = (); dependencies = (B10000000000000000000008,); fileSystemSynchronizedGroups = (B10000000000000000000001,); name = HomeSchoolHelperUITests; productName = HomeSchoolHelperUITests; productReference = B10000000000000000000002; productType = "com.apple.product-type.bundle.ui-testing"; };
+ B10000000000000000000004 = {isa = XCConfigurationList; buildConfigurations = (B1000000000000000000000A,B1000000000000000000000B,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+ B10000000000000000000005 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+ B10000000000000000000006 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+ B10000000000000000000007 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+ B10000000000000000000008 = {isa = PBXTargetDependency; target = A10000000000000000000008; targetProxy = B10000000000000000000009; };
+ B10000000000000000000009 = {isa = PBXContainerItemProxy; containerPortal = A1000000000000000000000C; proxyType = 1; remoteGlobalIDString = A10000000000000000000008; remoteInfo = HomeSchoolHelper; };
+ B1000000000000000000000A = {isa = XCBuildConfiguration; buildSettings = {GENERATE_INFOPLIST_FILE = YES; PRODUCT_BUNDLE_IDENTIFIER = com.chanderson7.HomeSchoolHelperUITests; PRODUCT_NAME = "$(TARGET_NAME)"; TEST_TARGET_NAME = HomeSchoolHelper; TARGETED_DEVICE_FAMILY = "1,2"; CODE_SIGN_STYLE = Automatic; }; name = Debug; };
+ B1000000000000000000000B = {isa = XCBuildConfiguration; buildSettings = {GENERATE_INFOPLIST_FILE = YES; PRODUCT_BUNDLE_IDENTIFIER = com.chanderson7.HomeSchoolHelperUITests; PRODUCT_NAME = "$(TARGET_NAME)"; TEST_TARGET_NAME = HomeSchoolHelper; TARGETED_DEVICE_FAMILY = "1,2"; CODE_SIGN_STYLE = Automatic; }; name = Release; };
+
 		A10000000000000000000001 = {isa = PBXBuildFile; productRef = A10000000000000000000002; };
 		A10000000000000000000003 = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HomeSchoolHelper.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000004 = {isa = PBXFileSystemSynchronizedRootGroup; path = iOS/HomeSchoolHelper; sourceTree = "<group>"; };
 		A10000000000000000000005 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001,); runOnlyForDeploymentPostprocessing = 0; };
-		A10000000000000000000006 = {isa = PBXGroup; children = (A10000000000000000000004,A10000000000000000000007,); sourceTree = "<group>"; };
-		A10000000000000000000007 = {isa = PBXGroup; children = (A10000000000000000000003,); name = Products; sourceTree = "<group>"; };
+		A10000000000000000000006 = {isa = PBXGroup; children = (A10000000000000000000004,B10000000000000000000001,A10000000000000000000007,); sourceTree = "<group>"; };
+		A10000000000000000000007 = {isa = PBXGroup; children = (A10000000000000000000003,B10000000000000000000002,); name = Products; sourceTree = "<group>"; };
 		A10000000000000000000008 = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = A10000000000000000000009;
@@ -33,7 +45,7 @@
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A10000000000000000000007;
 			projectDirPath = ""; projectRoot = "";
-			targets = (A10000000000000000000008,);
+			targets = (A10000000000000000000008,B10000000000000000000003,);
 		};
 		A1000000000000000000000A = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 		A1000000000000000000000B = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };

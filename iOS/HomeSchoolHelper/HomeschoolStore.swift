@@ -91,7 +91,17 @@ final class HomeschoolStore: ObservableObject {
     func course(for lesson: Lesson) -> Course? { state.courses.first { $0.id == lesson.courseID } }
 
     static func defaultFileURL() -> URL {
-        URL.applicationSupportDirectory
+        #if DEBUG
+        // UI tests get their own persistent household; relaunch never resets it.
+        if let rawID = ProcessInfo.processInfo.environment["HSH_UI_TEST_ID"],
+           let id = UUID(uuidString: rawID) {
+            return URL.applicationSupportDirectory
+                .appendingPathComponent("HomeSchoolHelperUITests", isDirectory: true)
+                .appendingPathComponent(id.uuidString, isDirectory: true)
+                .appendingPathComponent("school-state.json")
+        }
+        #endif
+        return URL.applicationSupportDirectory
             .appendingPathComponent("HomeSchoolHelper", isDirectory: true)
             .appendingPathComponent("school-state.json")
     }
