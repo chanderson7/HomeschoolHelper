@@ -325,6 +325,37 @@ public struct SchoolState: Codable, Equatable, Sendable {
         assignments[assignmentIndex].completedDay = normalizedCompletedDay
     }
 
+    public mutating func rescheduleAssignment(id: UUID, newDay: String?) throws {
+        try validate()
+        guard let assignmentIndex = assignments.firstIndex(where: { $0.id == id }) else {
+            throw SchoolStateError.unknownAssignment(id)
+        }
+        if let newDay {
+            try validateDay(newDay)
+        }
+        assignments[assignmentIndex].scheduledDay = newDay
+    }
+
+    @discardableResult
+    public mutating func rescheduleOverdueAssignments(to targetDay: String, studentID: UUID? = nil) throws -> Int {
+        try validate()
+        try validateDay(targetDay)
+        var count = 0
+        for index in assignments.indices {
+            let assignment = assignments[index]
+            if let studentID, assignment.studentID != studentID {
+                continue
+            }
+            if let scheduledDay = assignment.scheduledDay,
+               scheduledDay < targetDay,
+               assignment.status != .completed && assignment.status != .skipped {
+                assignments[index].scheduledDay = targetDay
+                count += 1
+            }
+        }
+        return count
+    }
+
     public mutating func confirmAttendance(studentID: UUID, day: String, minutes: Int) throws {
         try validate()
         guard students.contains(where: { $0.id == studentID }) else {

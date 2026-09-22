@@ -73,6 +73,39 @@ final class HomeschoolStore: ObservableObject {
     }
 
     @discardableResult
+    func toggleAssignmentStatus(_ assignment: Assignment) -> Bool {
+        let newStatus: AssignmentStatus = assignment.status == .completed ? .planned : .completed
+        let completedDay = newStatus == .completed ? SchoolDate.today : nil
+        return setStatus(assignment, status: newStatus, completedDay: completedDay)
+    }
+
+    @discardableResult
+    func rescheduleAssignment(_ assignment: Assignment, to day: String?) -> Bool {
+        update("reschedule lesson") { state in
+            try state.rescheduleAssignment(id: assignment.id, newDay: day)
+        }
+    }
+
+    @discardableResult
+    func rescheduleOverdue(to targetDay: String, studentID: UUID? = nil) -> Bool {
+        update("reschedule overdue lessons") { state in
+            _ = try state.rescheduleOverdueAssignments(to: targetDay, studentID: studentID)
+        }
+    }
+
+    func overdueAssignments(asOf day: String = SchoolDate.today, studentID: UUID? = nil) -> [Assignment] {
+        state.assignments.filter { assignment in
+            if let studentID, assignment.studentID != studentID { return false }
+            guard let scheduledDay = assignment.scheduledDay else { return false }
+            return scheduledDay < day && assignment.status != .completed && assignment.status != .skipped
+        }
+    }
+
+    func attendanceEntry(for studentID: UUID, day: String = SchoolDate.today) -> AttendanceEntry? {
+        state.attendance.first { $0.studentID == studentID && $0.day == day }
+    }
+
+    @discardableResult
     func confirmAttendance(studentID: UUID, day: String, minutes: Int) -> Bool {
         update("record attendance") { state in
             try state.confirmAttendance(studentID: studentID, day: day, minutes: minutes)

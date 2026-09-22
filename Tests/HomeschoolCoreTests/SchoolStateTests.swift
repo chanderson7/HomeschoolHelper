@@ -57,6 +57,37 @@ final class SchoolStateTests: XCTestCase {
         XCTAssertEqual(reloaded, state)
     }
 
+    func testRescheduleAssignmentAndOverdueAssignments() throws {
+        var state = SchoolState()
+        let alice = try state.addStudent(name: "Alice", gradeLevel: "3")
+        _ = try state.addCourse(
+            title: "Reading",
+            studentIDs: [alice],
+            lessonTitles: ["L1", "L2", "L3"],
+            startDay: "2024-04-01",
+            weekdays: [2, 3, 4, 5, 6]
+        )
+        let assignments = state.assignments.filter { $0.studentID == alice }
+        XCTAssertEqual(assignments.count, 3)
+
+        // Reschedule single assignment to another day or flexible
+        try state.rescheduleAssignment(id: assignments[0].id, newDay: "2024-04-10")
+        XCTAssertEqual(state.assignments.first { $0.id == assignments[0].id }?.scheduledDay, "2024-04-10")
+
+        try state.rescheduleAssignment(id: assignments[0].id, newDay: nil)
+        XCTAssertNil(state.assignments.first { $0.id == assignments[0].id }?.scheduledDay)
+
+        // Mark L2 completed on 2024-04-02
+        try state.setAssignmentStatus(id: assignments[1].id, status: .completed, completedDay: "2024-04-02")
+
+        // Reschedule overdue (assignments before 2024-04-05) to 2024-04-05
+        // L3 is scheduled for 2024-04-03 and is uncompleted. L2 is completed so it should NOT be moved.
+        let movedCount = try state.rescheduleOverdueAssignments(to: "2024-04-05", studentID: alice)
+        XCTAssertEqual(movedCount, 1)
+        XCTAssertEqual(state.assignments.first { $0.id == assignments[2].id }?.scheduledDay, "2024-04-05")
+        XCTAssertEqual(state.assignments.first { $0.id == assignments[1].id }?.scheduledDay, "2024-04-02")
+    }
+
     func testMissingRepositoryFileLoadsEmptyState() throws {
         let repository = JSONSchoolRepository(fileURL: temporaryDirectory.appendingPathComponent("missing.json"))
         let state = try repository.load()

@@ -105,6 +105,46 @@ final class HomeschoolStoreTests: XCTestCase {
         XCTAssertTrue(result.2)
         XCTAssertFalse(result.3)
     }
+
+    func testToggleAssignmentStatusAndRescheduleOverdue() async {
+        let repository = InMemorySchoolRepository(state: SchoolState())
+
+        let result = await MainActor.run {
+            let store = HomeschoolStore(repository: repository)
+            _ = store.addStudent(name: "Ada", gradeLevel: "4")
+            let student = store.state.students[0]
+            _ = store.addCourse(
+                title: "Math",
+                studentIDs: [student.id],
+                lessonTitles: ["L1", "L2"],
+                startDay: "2024-01-01",
+                weekdays: [2, 3, 4, 5, 6]
+            )
+            let assignment1 = store.state.assignments[0]
+            XCTAssertEqual(assignment1.status, .planned)
+
+            _ = store.toggleAssignmentStatus(assignment1)
+            let updated1 = store.state.assignments.first { $0.id == assignment1.id }!
+            XCTAssertEqual(updated1.status, .completed)
+            XCTAssertEqual(updated1.completedDay, SchoolDate.today)
+
+            _ = store.toggleAssignmentStatus(updated1)
+            let toggledBack = store.state.assignments.first { $0.id == assignment1.id }!
+            XCTAssertEqual(toggledBack.status, .planned)
+            XCTAssertNil(toggledBack.completedDay)
+
+            let overdue = store.overdueAssignments(asOf: "2024-01-10")
+            XCTAssertEqual(overdue.count, 2)
+
+            _ = store.rescheduleOverdue(to: "2024-01-10", studentID: student.id)
+            let overdueAfter = store.overdueAssignments(asOf: "2024-01-10")
+            XCTAssertEqual(overdueAfter.count, 0)
+
+            return store.state.assignments.map(\.scheduledDay)
+        }
+
+        XCTAssertEqual(result, ["2024-01-10", "2024-01-10"])
+    }
 }
 
 private enum FakeRepositoryError: LocalizedError, Sendable {

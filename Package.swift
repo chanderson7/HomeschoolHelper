@@ -11,7 +11,7 @@ let package = Package(
             name: "HomeschoolPresentation",
             dependencies: ["HomeschoolCore"],
             path: "iOS/HomeSchoolHelper",
-            exclude: ["HomeSchoolHelperApp.swift", "HomeTabView.swift"],
+            exclude: ["HomeSchoolHelperApp.swift", "HomeTabView.swift", "OnboardingView.swift"],
             sources: ["HomeschoolStore.swift"]
         ),
         .testTarget(name: "HomeschoolCoreTests", dependencies: ["HomeschoolCore"]),
