@@ -186,12 +186,16 @@ final class HomeSchoolHelperUITests: XCTestCase {
     /// SwiftUI List virtualizes offscreen rows; waiting alone cannot reveal them.
     private func reveal(_ element: XCUIElement, direction: ScrollDirection = .up,
                         file: StaticString = #filePath, line: UInt = #line) {
-        for attempt in 0...6 {
-            if element.exists && element.isHittable { return }
-            if attempt < 6 {
-                if direction == .up { app.swipeUp() } else { app.swipeDown() }
+        let directions: [ScrollDirection] = direction == .up ? [.up, .down] : [.down, .up]
+        for searchDirection in directions {
+            for attempt in 0...6 {
+                if element.exists && element.isHittable { return }
+                if attempt < 6 {
+                    if searchDirection == .up { app.swipeUp() } else { app.swipeDown() }
+                }
             }
         }
+        print(app.debugDescription)
         let hierarchy = XCTAttachment(string: app.debugDescription)
         hierarchy.name = "Unreachable element hierarchy"
         hierarchy.lifetime = .keepAlways
