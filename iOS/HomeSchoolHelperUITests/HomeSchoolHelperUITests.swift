@@ -28,18 +28,18 @@ final class HomeSchoolHelperUITests: XCTestCase {
         tap("Completed", in: app.buttons)
         tap("saveAssignmentStatus", in: app.buttons)
 
-        XCTAssertTrue(app.buttons["assignment-Ada-Lesson Two"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.buttons["assignment-Ben-Lesson One"].waitForExistence(timeout: 2))
+        reveal(app.buttons["assignment-Ada-Lesson Two"])
+        reveal(app.buttons["assignment-Ben-Lesson One"])
         XCTAssertFalse(app.buttons["assignment-Ada-Lesson One"].exists)
 
         app.tabBars.buttons["Records"].tap()
         XCTAssertTrue(app.staticTexts["0 learner-days"].waitForExistence(timeout: 2))
         recordAttendanceForAda(minutes: "120")
         recordAttendanceForAda(minutes: "150")
-        XCTAssertTrue(app.staticTexts.matching(identifier: "2h 30m").firstMatch.waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@", "2h 30m")).firstMatch.waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["1 learner-days"].exists)
         tap("openAttendance", in: app.buttons)
-        XCTAssertTrue(app.staticTexts.matching(identifier: "2h 30m").firstMatch.waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@", "2h 30m")).firstMatch.waitForExistence(timeout: 2))
         XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Ada ·")).count, 1)
         tap("Done", in: app.buttons)
 
@@ -57,12 +57,13 @@ final class HomeSchoolHelperUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Museum visit"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["1 learner-days"].exists)
         tap("openAttendance", in: app.buttons)
-        XCTAssertTrue(app.staticTexts.matching(identifier: "2h 30m").firstMatch.waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@", "2h 30m")).firstMatch.waitForExistence(timeout: 2))
         XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Ada ·")).count, 1)
         tap("Done", in: app.buttons)
         app.tabBars.buttons["Today"].tap()
-        XCTAssertTrue(app.buttons["assignment-Ada-Lesson Two"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.buttons["assignment-Ben-Lesson One"].exists)
+        reveal(app.buttons["assignment-Ada-Lesson Two"])
+        reveal(app.buttons["assignment-Ben-Lesson One"])
+        XCTAssertEqual(app.buttons["assignment-Ben-Lesson One"].label, "Lesson One for Ben, Planned")
     }
 
     func testLargeTextDarkModeAccessibilitySmoke() throws {
@@ -86,9 +87,9 @@ final class HomeSchoolHelperUITests: XCTestCase {
 
         app.tabBars.buttons["Family"].tap()
         attachScreenshot(named: "large-text-dark-family")
-        XCTAssertTrue(app.buttons["addStudent"].waitForExistence(timeout: 2))
+        reveal(app.buttons["addStudent"])
         addLearner(name: "Rae", grade: "5")
-        XCTAssertTrue(app.staticTexts["Rae"].waitForExistence(timeout: 2))
+        reveal(app.staticTexts["Rae"], direction: .down)
     }
 
     private func addLearner(name: String, grade: String) {
@@ -97,7 +98,7 @@ final class HomeSchoolHelperUITests: XCTestCase {
         enter(name, into: app.textFields["studentName"])
         enter(grade, into: app.textFields["studentGrade"])
         tap("saveStudent", in: app.buttons)
-        XCTAssertTrue(app.staticTexts[name].waitForExistence(timeout: 2))
+        reveal(app.staticTexts[name], direction: .down)
     }
 
     private func buildSharedUndatedSequence() {
@@ -113,8 +114,9 @@ final class HomeSchoolHelperUITests: XCTestCase {
         tap("Ben", in: app.switches)
         tap("datedLessonSchedule", in: app.switches)
         tap("saveCourse", in: app.buttons)
-        XCTAssertTrue(app.buttons["assignment-Ada-Lesson One"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.buttons["assignment-Ben-Lesson One"].exists)
+        reveal(app.buttons["assignment-Ada-Lesson One"])
+        reveal(app.buttons["assignment-Ben-Lesson One"])
+        XCTAssertEqual(app.buttons["assignment-Ben-Lesson One"].label, "Lesson One for Ben, Planned")
     }
 
     private func recordAttendanceForAda(minutes: String) {
@@ -175,8 +177,26 @@ final class HomeSchoolHelperUITests: XCTestCase {
 
     private func tap(_ identifier: String, in query: XCUIElementQuery) {
         let element = query[identifier]
-        XCTAssertTrue(element.waitForExistence(timeout: 2), "Missing \(identifier)")
+        reveal(element)
         element.tap()
+    }
+
+    private enum ScrollDirection { case up, down }
+
+    /// SwiftUI List virtualizes offscreen rows; waiting alone cannot reveal them.
+    private func reveal(_ element: XCUIElement, direction: ScrollDirection = .up,
+                        file: StaticString = #filePath, line: UInt = #line) {
+        for attempt in 0...6 {
+            if element.exists && element.isHittable { return }
+            if attempt < 6 {
+                if direction == .up { app.swipeUp() } else { app.swipeDown() }
+            }
+        }
+        let hierarchy = XCTAttachment(string: app.debugDescription)
+        hierarchy.name = "Unreachable element hierarchy"
+        hierarchy.lifetime = .keepAlways
+        add(hierarchy)
+        XCTFail("Element not reachable: \(element)", file: file, line: line)
     }
 
     private func attachScreenshot(named name: String) {
