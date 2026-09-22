@@ -110,10 +110,12 @@ final class HomeSchoolHelperUITests: XCTestCase {
         lessons.tap()
         lessons.typeText("Lesson One\nLesson Two")
         app.swipeUp()
-        tap("Ada", in: app.switches)
-        tap("Ben", in: app.switches)
-        tap("datedLessonSchedule", in: app.switches)
+        setSwitch("Ada", enabled: true)
+        setSwitch("Ben", enabled: true)
+        setSwitch("datedLessonSchedule", enabled: false)
         tap("saveCourse", in: app.buttons)
+        let saved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: app.buttons["saveCourse"])
+        XCTAssertEqual(XCTWaiter.wait(for: [saved], timeout: 3), .completed, "Course form did not save")
         reveal(app.buttons["assignment-Ada-Lesson One"])
         reveal(app.buttons["assignment-Ben-Lesson One"])
         XCTAssertEqual(app.buttons["assignment-Ben-Lesson One"].label, "Lesson One for Ben, Planned")
@@ -134,7 +136,7 @@ final class HomeSchoolHelperUITests: XCTestCase {
         tap("addActivity", in: app.buttons)
         enter("Museum visit", into: app.textFields["activityTitle"])
         selectDate(daysBeforeToday: 7, in: app.datePickers["activityDay"])
-        tap("Ben", in: app.switches)
+        setSwitch("Ben", enabled: true)
         tap("saveActivity", in: app.buttons)
     }
 
@@ -179,6 +181,19 @@ final class HomeSchoolHelperUITests: XCTestCase {
         let element = query[identifier]
         reveal(element)
         element.tap()
+    }
+
+    private func setSwitch(_ identifier: String, enabled: Bool) {
+        let row = app.switches[identifier]
+        reveal(row)
+        // SwiftUI exposes a labeled row and a nested UISwitch. Tapping the
+        // row's center can hit inert label space rather than the control.
+        let control = row.switches.firstMatch.exists ? row.switches.firstMatch : row
+        reveal(control)
+        let expected = enabled ? "1" : "0"
+        if control.value as? String != expected { control.tap() }
+        let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", expected), object: control)
+        XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 3), .completed, "Switch \(identifier) did not change")
     }
 
     private enum ScrollDirection { case up, down }

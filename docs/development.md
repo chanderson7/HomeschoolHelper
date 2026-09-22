@@ -16,7 +16,7 @@ The build script uses a generic iOS Simulator destination, disables signing for 
 
 ## GitHub verification
 
-The `Verify` GitHub Actions workflow runs on pushes, pull requests and manual dispatch. Independent macOS jobs run domain/store tests, build the iOS Simulator app, and execute XCUITest on iPhone 17 and the smaller iPhone 16e. All select Xcode 26.3 on `macos-15`; the scripts respect an explicit `DEVELOPER_DIR`. Update that version deliberately if the runner image removes it.
+The `Verify` GitHub Actions workflow runs on pushes, pull requests and manual dispatch. Independent macOS jobs run domain/store tests, build the iOS Simulator app, and execute XCUITest on iPhone 17 and the smaller iPhone 16e. All select Xcode 26.3. Domain and build jobs use `macos-15`; UI jobs use `macos-26` with the iOS 26.2 simulator explicitly selected. The scripts respect an explicit `DEVELOPER_DIR`. Update those versions deliberately if a runner image removes them.
 
 No signing credentials or repository write permissions are required. Job timeouts and cancellation of superseded runs limit wasted runner time. GitHub's Actions tab contains results and logs; UI result bundles and screenshots are retained for seven days. These checks do not publish the app. Branch protection is not configured by this workflow; require the tests, build and both UI checks in repository rules to block merges on failures.
 
