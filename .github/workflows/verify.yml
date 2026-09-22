@@ -46,18 +46,23 @@ jobs:
 
   ui-tests:
     name: iOS UI tests (${{ matrix.device }})
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         device: [iPhone 17, iPhone 16e]
     env:
-      HSH_TEST_DESTINATION: platform=iOS Simulator,name=${{ matrix.device }},OS=latest
+      HSH_TEST_DESTINATION: platform=iOS Simulator,name=${{ matrix.device }},OS=26.2
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Select Xcode and inspect simulators
+        run: |
+          sudo xcode-select --switch "$DEVELOPER_DIR"
+          xcodebuild -version
+          xcrun simctl list devices available
       - name: Run family workflow and accessibility smoke tests
         run: sh scripts/test-ui.sh -resultBundlePath .build/ui-tests.xcresult
       - name: Upload UI test results
