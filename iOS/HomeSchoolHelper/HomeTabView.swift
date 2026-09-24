@@ -223,9 +223,16 @@ struct TodayView: View {
             }
         } else {
             if !displayed.isEmpty {
-                VStack(spacing: 10) {
-                    ForEach(displayed) { assignment in
-                        AssignmentCard(assignment: assignment)
+                let firstIncompleteIndex = displayed.firstIndex { $0.status != .completed }
+                VStack(spacing: 0) {
+                    ForEach(Array(displayed.enumerated()), id: \.element.id) { index, assignment in
+                        AssignmentCard(
+                            assignment: assignment,
+                            isFirst: index == 0,
+                            isLast: index == displayed.count - 1,
+                            isActive: index == firstIncompleteIndex,
+                            showTimelineSpine: true
+                        )
                     }
                 }
             }
@@ -237,9 +244,16 @@ struct TodayView: View {
                     Text("Work at your pace").foregroundStyle(.secondary)
                 }
 
-                VStack(spacing: 10) {
-                    ForEach(flexibleNext) { assignment in
-                        AssignmentCard(assignment: assignment)
+                let firstIncompleteFlexibleIndex = flexibleNext.firstIndex { $0.status != .completed }
+                VStack(spacing: 0) {
+                    ForEach(Array(flexibleNext.enumerated()), id: \.element.id) { index, assignment in
+                        AssignmentCard(
+                            assignment: assignment,
+                            isFirst: index == 0,
+                            isLast: index == flexibleNext.count - 1,
+                            isActive: index == firstIncompleteFlexibleIndex,
+                            showTimelineSpine: true
+                        )
                     }
                 }
             }
@@ -260,29 +274,33 @@ private struct OverdueCatchUpCard: View {
     let onCatchUp: () -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: 14) {
             Image(systemName: "clock.badge.exclamationmark")
-                .font(.title2)
+                .font(.title2.weight(.semibold))
                 .foregroundStyle(.orange)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(overdueCount) Past Lesson\(overdueCount == 1 ? "" : "s") Unfinished")
-                    .font(.subheadline.bold())
+                    .font(.headline.weight(.bold))
                 Text("Catch up with a single tap.")
-                    .font(.caption)
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
             Spacer(minLength: 4)
 
             Button("Move to Today", action: onCatchUp)
-                .font(.caption.bold())
+                .font(.subheadline.bold())
                 .buttonStyle(.borderedProminent)
                 .tint(.orange)
                 .accessibilityIdentifier("catchUpOverdue")
         }
-        .padding(14)
-        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
+        .padding(16)
+        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 18))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.orange.opacity(0.25), lineWidth: 1)
+        )
     }
 }
 
@@ -310,14 +328,20 @@ private struct TodayAttendanceCard: View {
 
     var body: some View {
         if selectedDay == SchoolDate.today && !activeStudents.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 12) {
                 if unrecordedStudents.isEmpty || justConfirmed {
-                    HStack {
+                    HStack(spacing: 12) {
                         Image(systemName: "checkmark.seal.fill")
+                            .font(.title3)
                             .foregroundStyle(Sage.accent)
-                        Text("Today's Attendance Recorded (\(Hours(minutes: totalConfirmedToday)))")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Sage.accent)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Today's Attendance Recorded (\(Hours(minutes: totalConfirmedToday)))")
+                                .font(.headline.weight(.bold))
+                                .foregroundStyle(Sage.accent)
+                            Text("Confirmed for \(activeStudents.map(\.name).joined(separator: ", "))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                         Spacer()
                     }
                     .padding(.vertical, 4)
@@ -325,18 +349,22 @@ private struct TodayAttendanceCard: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Wrap Up Today's School")
-                                .font(.subheadline.bold())
+                                .font(.headline.weight(.bold))
                             Text("Confirm attendance for \(unrecordedStudents.map(\.name).joined(separator: ", "))")
-                                .font(.caption)
+                                .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
                     }
 
-                    HStack {
+                    HStack(spacing: 14) {
                         Stepper(value: $hours, in: 0.5...12.0, step: 0.5) {
-                            Text("\(String(format: "%.1f", hours)) hrs (\(Int(hours * 60))m)")
-                                .font(.subheadline.weight(.semibold))
+                            HStack(spacing: 6) {
+                                Image(systemName: "clock")
+                                    .foregroundStyle(Sage.accent)
+                                Text("\(String(format: "%.1f", hours)) hrs (\(Int(hours * 60))m)")
+                                    .font(.subheadline.weight(.bold))
+                            }
                         }
 
                         Button {
@@ -353,17 +381,21 @@ private struct TodayAttendanceCard: View {
                         } label: {
                             Text("Confirm")
                                 .font(.subheadline.bold())
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 8)
-                                .background(Sage.accent, in: RoundedRectangle(cornerRadius: 10))
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(Sage.accent, in: RoundedRectangle(cornerRadius: 12))
                                 .foregroundStyle(.white)
                         }
                         .accessibilityIdentifier("quickConfirmAttendance")
                     }
                 }
             }
-            .padding(14)
-            .background(Sage.soft, in: RoundedRectangle(cornerRadius: 16))
+            .padding(16)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18)
+                    .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
+            )
         }
     }
 }
@@ -434,102 +466,240 @@ private struct GuideStepRow: View {
     }
 }
 
+private enum LessonActivityType: String, CaseIterable, Identifiable {
+    case reading = "📖"
+    case practice = "✏️"
+    case lab = "🔬"
+    case quiz = "📝"
+
+    var id: String { rawValue }
+    var name: String {
+        switch self {
+        case .reading: return "Reading"
+        case .practice: return "Practice"
+        case .lab: return "Lab"
+        case .quiz: return "Quiz"
+        }
+    }
+
+    var next: LessonActivityType {
+        let all = Self.allCases
+        guard let idx = all.firstIndex(of: self) else { return .reading }
+        return all[(idx + 1) % all.count]
+    }
+
+    static func detect(from title: String) -> LessonActivityType {
+        let lower = title.lowercased()
+        if lower.contains("quiz") || lower.contains("test") || lower.contains("exam") || lower.contains("checkpoint") {
+            return .quiz
+        } else if lower.contains("lab") || lower.contains("experiment") || lower.contains("project") || lower.contains("investigat") {
+            return .lab
+        } else if lower.contains("read") || lower.contains("chapter") || lower.contains("intro") || lower.contains("story") || lower.contains("book") {
+            return .reading
+        } else {
+            return .practice
+        }
+    }
+}
+
 private struct AssignmentCard: View {
     @EnvironmentObject private var store: HomeschoolStore
     let assignment: Assignment
+    var isFirst: Bool = false
+    var isLast: Bool = false
+    var isActive: Bool = false
+    var showTimelineSpine: Bool = false
     @State private var showStatus = false
 
     private var lesson: Lesson? { store.lesson(for: assignment.lessonID) }
     private var statusTitle: String { assignment.status.readable }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            // 1-Tap Quick Check Button
-            Button {
-                #if os(iOS)
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                #endif
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    _ = store.toggleAssignmentStatus(assignment)
+        HStack(alignment: .top, spacing: showTimelineSpine ? 12 : 12) {
+            if showTimelineSpine {
+                timelineSpineRail
+            } else {
+                quickCheckButton
+            }
+
+            cardContentButton
+        }
+        .padding(showTimelineSpine ? EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0) : EdgeInsets(top: 14, leading: 14, bottom: 14, trailing: 14))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(showTimelineSpine ? Color.clear : Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+        .contextMenu {
+            contextMenuContent
+        }
+        .sheet(isPresented: $showStatus) { AssignmentStatusSheet(assignment: assignment) }
+    }
+
+    // MARK: - Timeline Spine Rail
+    @ViewBuilder
+    private var timelineSpineRail: some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(isFirst ? Color.clear : (assignment.status == .completed ? Sage.accent : Sage.accent.opacity(0.35)))
+                .frame(width: 3, height: 18)
+
+            quickCheckButton
+
+            Rectangle()
+                .fill(isLast ? Color.clear : Sage.accent.opacity(0.35))
+                .frame(width: 3)
+                .frame(maxHeight: .infinity)
+        }
+        .frame(width: 28)
+    }
+
+    // MARK: - Quick Check Button
+    @ViewBuilder
+    private var quickCheckButton: some View {
+        Button {
+            #if os(iOS)
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            #endif
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                _ = store.toggleAssignmentStatus(assignment)
+            }
+        } label: {
+            if showTimelineSpine {
+                ZStack {
+                    if assignment.status == .completed {
+                        Circle()
+                            .fill(Sage.accent)
+                            .frame(width: 26, height: 26)
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(.white)
+                    } else if isActive {
+                        Circle()
+                            .stroke(Sage.accent, lineWidth: 2.5)
+                            .background(Circle().fill(Sage.accent.opacity(0.18)))
+                            .frame(width: 26, height: 26)
+                        Circle()
+                            .fill(Sage.accent)
+                            .frame(width: 10, height: 10)
+                    } else {
+                        Circle()
+                            .stroke(Sage.accent.opacity(0.45), lineWidth: 2)
+                            .background(Circle().fill(Color(.systemBackground)))
+                            .frame(width: 26, height: 26)
+                    }
                 }
-            } label: {
+            } else {
                 Image(systemName: assignment.status.symbol)
                     .font(.title3)
                     .foregroundStyle(assignment.status == .completed ? Sage.accent : .secondary)
                     .frame(width: 32, height: 32)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(assignment.status == .completed ? "Mark incomplete" : "Mark complete")
-            .accessibilityIdentifier("toggleStatus-\(lesson?.title ?? "missing")")
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(assignment.status == .completed ? "Mark incomplete" : "Mark complete")
+        .accessibilityIdentifier("toggleStatus-\(lesson?.title ?? "missing")")
+    }
 
-            // Card Body - opens detail sheet
-            Button {
-                showStatus = true
-            } label: {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(lesson?.title ?? "Missing lesson")
-                        .font(.headline)
-                        .strikethrough(assignment.status == .completed)
-                        .foregroundStyle(assignment.status == .completed ? .secondary : .primary)
-                    Text([store.student(for: assignment.studentID)?.name, lesson.flatMap(store.course(for:))?.title]
-                        .compactMap { $0 }.joined(separator: " · "))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    if let completedDay = assignment.completedDay {
-                        Text("Completed \(SchoolDate.short(completedDay))").font(.caption).foregroundStyle(.secondary)
+    // MARK: - Card Content Button
+    @ViewBuilder
+    private var cardContentButton: some View {
+        Button {
+            showStatus = true
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    let act = LessonActivityType.detect(from: lesson?.title ?? "")
+                    HStack(spacing: 4) {
+                        Text(act.rawValue).font(.caption)
+                        Text(act.name).font(.caption2.weight(.bold)).foregroundStyle(Sage.accent)
                     }
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(Sage.accent.opacity(0.12)))
+
+                    Text([store.student(for: assignment.studentID)?.name, lesson.flatMap(store.course(for:))?.title].compactMap { $0 }.joined(separator: " • "))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .accessibilityHidden(true)
+
+                    Spacer(minLength: 4)
+
+                    Text(statusTitle)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(assignment.status == .completed ? Sage.accent : (isActive ? Color.orange : .secondary))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule().fill(assignment.status == .completed ? Sage.accent.opacity(0.12) : (isActive ? Color.orange.opacity(0.14) : Color(.tertiarySystemFill)))
+                        )
                 }
-                Spacer()
-                Text(statusTitle)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(assignment.status == .completed ? Sage.accent : .secondary)
+
+                Text(lesson?.title ?? "Missing lesson")
+                    .font(.headline.weight(.bold))
+                    .strikethrough(assignment.status == .completed)
+                    .foregroundStyle(assignment.status == .completed ? .secondary : .primary)
+                    .multilineTextAlignment(.leading)
+
+                if let completedDay = assignment.completedDay {
+                    Text("Completed \(SchoolDate.short(completedDay))")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
             }
-            .buttonStyle(.plain)
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color(.secondarySystemGroupedBackground))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(isActive ? Sage.accent.opacity(0.55) : Color.secondary.opacity(0.12), lineWidth: isActive ? 1.5 : 1)
+            )
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background, in: RoundedRectangle(cornerRadius: 18))
-        .contextMenu {
-            Button {
-                #if os(iOS)
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                #endif
-                _ = store.toggleAssignmentStatus(assignment)
-            } label: {
-                Label(assignment.status == .completed ? "Mark Planned" : "Mark Completed", systemImage: assignment.status == .completed ? "circle" : "checkmark.circle.fill")
-            }
-
-            if assignment.scheduledDay != nil {
-                Button {
-                    let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
-                    _ = store.rescheduleAssignment(assignment, to: SchoolDate.string(tomorrow))
-                } label: {
-                    Label("Push to Tomorrow", systemImage: "arrow.right.circle")
-                }
-
-                Button {
-                    _ = store.rescheduleAssignment(assignment, to: nil)
-                } label: {
-                    Label("Make Flexible (Undated)", systemImage: "calendar.badge.minus")
-                }
-            } else {
-                Button {
-                    _ = store.rescheduleAssignment(assignment, to: SchoolDate.today)
-                } label: {
-                    Label("Move to Today", systemImage: "calendar.badge.plus")
-                }
-            }
-
-            Button {
-                showStatus = true
-            } label: {
-                Label("Edit Status Details...", systemImage: "slider.horizontal.3")
-            }
-        }
+        .buttonStyle(.plain)
         .accessibilityLabel("\(lesson?.title ?? "Lesson") for \(store.student(for: assignment.studentID)?.name ?? "learner"), \(statusTitle)")
         .accessibilityIdentifier("assignment-\(store.student(for: assignment.studentID)?.name ?? "unknown")-\(lesson?.title ?? "missing")")
-        .sheet(isPresented: $showStatus) { AssignmentStatusSheet(assignment: assignment) }
+    }
+
+    // MARK: - Context Menu Content
+    @ViewBuilder
+    private var contextMenuContent: some View {
+        Button {
+            #if os(iOS)
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            #endif
+            _ = store.toggleAssignmentStatus(assignment)
+        } label: {
+            Label(assignment.status == .completed ? "Mark Planned" : "Mark Completed", systemImage: assignment.status == .completed ? "circle" : "checkmark.circle.fill")
+        }
+
+        if assignment.scheduledDay != nil {
+            Button {
+                let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+                _ = store.rescheduleAssignment(assignment, to: SchoolDate.string(tomorrow))
+            } label: {
+                Label("Push to Tomorrow", systemImage: "arrow.right.circle")
+            }
+
+            Button {
+                _ = store.rescheduleAssignment(assignment, to: nil)
+            } label: {
+                Label("Make Flexible (Undated)", systemImage: "calendar.badge.minus")
+            }
+        } else {
+            Button {
+                _ = store.rescheduleAssignment(assignment, to: SchoolDate.today)
+            } label: {
+                Label("Move to Today", systemImage: "calendar.badge.plus")
+            }
+        }
+
+        Button {
+            showStatus = true
+        } label: {
+            Label("Edit Status Details...", systemImage: "slider.horizontal.3")
+        }
     }
 }
 
@@ -601,6 +771,14 @@ struct PlanView: View {
         }
     }
 
+    private var flexibleAssignments: [Assignment] {
+        store.state.assignments.filter {
+            $0.scheduledDay == nil && (studentID == nil || $0.studentID == studentID)
+        }
+    }
+
+    @State private var selectedCourseForRoadmap: Course?
+
     var body: some View {
         NavigationStack {
             List {
@@ -616,6 +794,7 @@ struct PlanView: View {
                 } else {
                     coursesSection
                     todayReferenceSection
+                    flexibleReferenceSection
                 }
             }
             .navigationTitle("Curriculum & Plan")
@@ -627,6 +806,9 @@ struct PlanView: View {
                 SaveStatusToolbar()
             }
             .sheet(isPresented: $showBuilder) { SequenceBuilderView() }
+            .sheet(item: $selectedCourseForRoadmap) { course in
+                CourseRoadmapDetailView(course: course, studentID: studentID)
+            }
         }
     }
 
@@ -672,7 +854,9 @@ struct PlanView: View {
     private var coursesSection: some View {
         Section("Subjects & Curricula") {
             ForEach(studentCourses) { course in
-                CourseRowView(course: course, studentID: studentID)
+                CourseRowView(course: course, studentID: studentID) {
+                    selectedCourseForRoadmap = course
+                }
             }
         }
     }
@@ -691,796 +875,321 @@ struct PlanView: View {
             }
         }
     }
+
+    @ViewBuilder
+    private var flexibleReferenceSection: some View {
+        Section("Flexible work") {
+            if flexibleAssignments.isEmpty {
+                Text("No flexible lessons.").foregroundStyle(.secondary)
+            } else {
+                ForEach(flexibleAssignments) { assignment in
+                    AssignmentCard(assignment: assignment)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                }
+            }
+        }
+    }
 }
 
 private struct CourseRowView: View {
     @EnvironmentObject private var store: HomeschoolStore
     let course: Course
     let studentID: UUID?
+    var onOpenRoadmap: (() -> Void)? = nil
 
-    var body: some View {
-        let lessons = store.state.lessons.filter { $0.courseID == course.id }
-        let courseAssignments = store.state.assignments.filter { assignment in
+    private var lessons: [Lesson] {
+        store.state.lessons.filter { $0.courseID == course.id }
+            .sorted { $0.sequence < $1.sequence }
+    }
+
+    private var courseAssignments: [Assignment] {
+        store.state.assignments.filter { assignment in
             lessons.map(\.id).contains(assignment.lessonID) && (studentID == nil || assignment.studentID == studentID)
         }
-        let completed = courseAssignments.filter { $0.status == .completed }.count
-        let total = courseAssignments.count
-
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(course.title)
-                    .font(.headline)
-                Spacer()
-                Text("\(completed)/\(total) done")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Sage.accent)
-            }
-            Text("\(lessons.count) lessons total")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-private enum LessonActivityType: String, CaseIterable, Identifiable {
-    case reading = "📖"
-    case practice = "✏️"
-    case lab = "🔬"
-    case quiz = "📝"
-
-    var id: String { rawValue }
-    var name: String {
-        switch self {
-        case .reading: return "Reading"
-        case .practice: return "Practice"
-        case .lab: return "Lab"
-        case .quiz: return "Quiz"
-        }
     }
 
-    var next: LessonActivityType {
-        let all = Self.allCases
-        guard let idx = all.firstIndex(of: self) else { return .reading }
-        return all[(idx + 1) % all.count]
+    private var completedCount: Int { courseAssignments.filter { $0.status == .completed }.count }
+    private var totalCount: Int { max(lessons.count, courseAssignments.count) }
+    private var progress: Double { totalCount == 0 ? 0 : Double(completedCount) / Double(totalCount) }
+
+    private var nextLessonTitle: String? {
+        let completedLessonIDs = Set(courseAssignments.filter { $0.status == .completed }.map(\.lessonID))
+        return lessons.first { !completedLessonIDs.contains($0.id) }?.title
     }
-}
 
-private struct DraftLesson: Identifiable, Equatable {
-    var id = UUID()
-    var title: String
-    var activityType: LessonActivityType = .reading
-    var durationMinutes: Int = 30
-    var notes: String = ""
-}
-
-private struct RoadmapMilestoneCard: View {
-    @Binding var lesson: DraftLesson
-    let index: Int
-    let isFirst: Bool
-    let isLast: Bool
-    let onDelete: () -> Void
+    private var subjectIcon: String {
+        let lower = course.title.lowercased()
+        if lower.contains("math") || lower.contains("algebra") || lower.contains("geometry") { return "📐" }
+        if lower.contains("read") || lower.contains("lit") || lower.contains("english") { return "📚" }
+        if lower.contains("science") || lower.contains("bio") || lower.contains("chem") || lower.contains("physic") { return "🔬" }
+        if lower.contains("history") || lower.contains("geography") || lower.contains("social") { return "🧭" }
+        if lower.contains("art") || lower.contains("draw") { return "🎨" }
+        if lower.contains("music") { return "🎵" }
+        if lower.contains("code") || lower.contains("program") { return "💻" }
+        return "📖"
+    }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            // Milestone spine rail
-            VStack(spacing: 0) {
-                Rectangle()
-                    .fill(isFirst ? Color.clear : Sage.accent.opacity(0.35))
-                    .frame(width: 2, height: 14)
-
-                ZStack {
-                    Circle()
-                        .stroke(Sage.accent, lineWidth: 2)
-                        .background(Circle().fill(Color(.systemBackground)))
-                        .frame(width: 20, height: 20)
-                    Circle()
-                        .fill(Sage.accent)
-                        .frame(width: 8, height: 8)
-                }
-
-                Rectangle()
-                    .fill(isLast ? Color.clear : Sage.accent.opacity(0.35))
-                    .frame(width: 2)
-                    .frame(maxHeight: .infinity)
-            }
-            .frame(width: 20)
-
-            // Milestone Card
+        Button {
+            onOpenRoadmap?()
+        } label: {
             VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) {
-                    // Activity Icon Pill (cycles on tap)
-                    Button {
-                        lesson.activityType = lesson.activityType.next
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text(lesson.activityType.rawValue)
-                                .font(.subheadline)
-                            Text(lesson.activityType.name)
+                HStack(alignment: .center, spacing: 12) {
+                    Text(subjectIcon)
+                        .font(.title2)
+                        .frame(width: 44, height: 44)
+                        .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12))
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(course.title)
+                            .font(.headline.weight(.bold))
+                            .foregroundStyle(.primary)
+
+                        if let next = nextLessonTitle {
+                            Text("Next: \(next)")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(Sage.accent)
+                                .lineLimit(1)
+                        } else if totalCount > 0 && completedCount >= totalCount {
+                            Text("Curriculum complete 🎉")
                                 .font(.caption.weight(.bold))
                                 .foregroundStyle(Sage.accent)
+                        } else {
+                            Text("\(lessons.count) lessons total")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Capsule().fill(Sage.accent.opacity(0.12)))
                     }
-                    .buttonStyle(.plain)
 
-                    // Lesson Title (Large, Bold & Readable)
-                    TextField("Lesson title", text: $lesson.title)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.primary)
+                    Spacer()
 
-                    Spacer(minLength: 4)
-
-                    // Duration pill (cycles 20 -> 30 -> 45 -> 60)
-                    Button {
-                        cycleDuration()
-                    } label: {
-                        Text("\(lesson.durationMinutes)m")
-                            .font(.footnote.weight(.bold))
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("\(completedCount)/\(totalCount) done")
+                            .font(.subheadline.weight(.bold))
                             .foregroundStyle(Sage.accent)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Capsule().fill(Sage.accent.opacity(0.14)))
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.tertiary)
                     }
-                    .buttonStyle(.plain)
-
-                    // Delete button
-                    Button(role: .destructive, action: onDelete) {
-                        Image(systemName: "trash")
-                            .font(.subheadline)
-                            .foregroundStyle(.red.opacity(0.8))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Delete lesson")
                 }
 
-                // Secondary notes / materials
-                TextField("Notes or materials (e.g. Chapter 1, Kit 4)", text: $lesson.notes)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                ProgressView(value: progress)
+                    .tint(Sage.accent)
             }
-            .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color(.secondarySystemGroupedBackground))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
-            )
+            .padding(.vertical, 6)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct CourseRoadmapDetailView: View {
+    @EnvironmentObject private var store: HomeschoolStore
+    @Environment(\.dismiss) private var dismiss
+    let course: Course
+    let studentID: UUID?
+
+    private var lessons: [Lesson] {
+        store.state.lessons.filter { $0.courseID == course.id }
+            .sorted { $0.sequence < $1.sequence }
+    }
+
+    private var assignments: [Assignment] {
+        store.state.assignments.filter { assignment in
+            lessons.map(\.id).contains(assignment.lessonID) && (studentID == nil || assignment.studentID == studentID)
         }
     }
 
-    private func cycleDuration() {
-        let options = [20, 30, 45, 60]
-        if let idx = options.firstIndex(of: lesson.durationMinutes) {
-            lesson.durationMinutes = options[(idx + 1) % options.count]
-        } else {
-            lesson.durationMinutes = 30
+    private var completedLessonIDs: Set<UUID> {
+        Set(assignments.filter { $0.status == .completed }.map(\.lessonID))
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("CURRICULUM ROADMAP")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Sage.accent)
+                        Text(course.title)
+                            .font(.title.weight(.bold))
+                        Text("\(completedLessonIDs.count) of \(lessons.count) lessons completed")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+
+                    VStack(spacing: 0) {
+                        ForEach(lessons.indices, id: \.self) { idx in
+                            let lesson = lessons[idx]
+                            let isDone = completedLessonIDs.contains(lesson.id)
+                            let isFirst = (idx == 0)
+                            let isLast = (idx == lessons.count - 1)
+                            let isNext = !isDone && (idx == 0 || completedLessonIDs.contains(lessons[idx - 1].id))
+
+                            HStack(alignment: .top, spacing: 12) {
+                                VStack(spacing: 0) {
+                                    Rectangle()
+                                        .fill(isFirst ? Color.clear : (isDone ? Sage.accent : Sage.accent.opacity(0.35)))
+                                        .frame(width: 3, height: 16)
+
+                                    ZStack {
+                                        if isDone {
+                                            Circle().fill(Sage.accent).frame(width: 24, height: 24)
+                                            Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
+                                        } else if isNext {
+                                            Circle().stroke(Sage.accent, lineWidth: 2.5)
+                                                .background(Circle().fill(Sage.accent.opacity(0.15)))
+                                                .frame(width: 24, height: 24)
+                                            Circle().fill(Sage.accent).frame(width: 10, height: 10)
+                                        } else {
+                                            Circle().stroke(Sage.accent.opacity(0.4), lineWidth: 2)
+                                                .background(Circle().fill(Color(.systemBackground)))
+                                                .frame(width: 24, height: 24)
+                                        }
+                                    }
+
+                                    Rectangle()
+                                        .fill(isLast ? Color.clear : Sage.accent.opacity(0.35))
+                                        .frame(width: 3)
+                                        .frame(maxHeight: .infinity)
+                                }
+                                .frame(width: 24)
+
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack {
+                                        Text("Lesson \(lesson.sequence + 1)")
+                                            .font(.caption.weight(.bold))
+                                            .foregroundStyle(Sage.accent)
+                                        Spacer()
+                                        if isDone {
+                                            Text("Completed ✓")
+                                                .font(.caption2.weight(.bold))
+                                                .foregroundStyle(Sage.accent)
+                                        } else if isNext {
+                                            Text("Next Milestone")
+                                                .font(.caption2.weight(.bold))
+                                                .foregroundStyle(Color.orange)
+                                        }
+                                    }
+
+                                    Text(lesson.title)
+                                        .font(.headline.weight(.bold))
+                                        .foregroundStyle(isDone ? .secondary : .primary)
+                                        .strikethrough(isDone)
+                                }
+                                .padding(14)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(isNext ? Sage.accent.opacity(0.6) : Color.secondary.opacity(0.12), lineWidth: isNext ? 1.5 : 1)
+                                )
+                                .padding(.bottom, 8)
+                            }
+                        }
+                    }
+                }
+                .padding()
+            }
+            .background(Sage.background.ignoresSafeArea())
+            .navigationTitle("Course Roadmap")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done", action: dismiss.callAsFunction)
+                }
+            }
         }
     }
 }
+
 
 private struct SequenceBuilderView: View {
     @EnvironmentObject private var store: HomeschoolStore
     @Environment(\.dismiss) private var dismiss
     @State private var courseTitle = ""
     @State private var selectedStudents = Set<UUID>()
-    @State private var draftLessons: [DraftLesson] = [
-        DraftLesson(title: "Lesson 1: Introduction", activityType: .reading, durationMinutes: 25, notes: "Core Reading"),
-        DraftLesson(title: "Lesson 2: Core Concepts", activityType: .practice, durationMinutes: 30, notes: "Workbook Practice"),
-        DraftLesson(title: "Lesson 3: Hands-on Lab", activityType: .lab, durationMinutes: 45, notes: "Activity Kit"),
-        DraftLesson(title: "Lesson 4: Review & Application", activityType: .practice, durationMinutes: 30, notes: "Review Problems"),
-        DraftLesson(title: "Lesson 5: Unit Checkpoint", activityType: .quiz, durationMinutes: 25, notes: "Check-in Quiz")
-    ]
-    @State private var showBulkEditor = false
+    @State private var lessonText = ""
     @State private var datesLessons = true
     @State private var startDate = Date()
     @State private var weekdays: Set<Int> = [2, 3, 4, 5, 6]
-    @State private var bulkOutlineText = ""
 
     private let weekdayNames = [(2, "Mon"), (3, "Tue"), (4, "Wed"), (5, "Thu"), (6, "Fri"), (7, "Sat"), (1, "Sun")]
-
-    private var validLessonTitles: [String] {
-        draftLessons
-            .map { $0.title.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-    }
-
-    private var estimatedWeeks: Int {
-        let activeDays = max(1, weekdays.count)
-        return max(1, Int(ceil(Double(validLessonTitles.count) / Double(activeDays))))
-    }
-
-    private var projectedEndDateString: String? {
-        guard datesLessons, !validLessonTitles.isEmpty, !weekdays.isEmpty else { return nil }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.locale = Locale(identifier: "en_US_POSIX")
-        var date = startDate
-        var scheduled = 0
-        while scheduled < validLessonTitles.count {
-            if weekdays.contains(calendar.component(.weekday, from: date)) {
-                scheduled += 1
-            }
-            if scheduled == validLessonTitles.count { break }
-            guard let next = calendar.date(byAdding: .day, value: 1, to: date) else { break }
-            date = next
-        }
-        return date.formatted(.dateTime.month(.abbreviated).day().year())
-    }
-
-    var body: some View {
-        NavigationStack {
-            ZStack(alignment: .bottom) {
-                ScrollView {
-                    VStack(spacing: 20) {
-                        if store.presentedError != nil {
-                            SaveErrorBanner()
-                        }
-
-                        heroCourseCard
-                        roadmapSection
-                        learnersSection
-                        scheduleSection
-                        bulkOutlineSection
-
-                        Spacer(minLength: 80)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
-                }
-                .background(Color(.systemGroupedBackground))
-                .scrollDismissesKeyboard(.interactively)
-
-                floatingBottomDock
-            }
-            .navigationTitle("Curriculum Roadmap")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", action: dismiss.callAsFunction)
-                }
-            }
-            .sheet(isPresented: $showBulkEditor) {
-                BulkLessonsSheet(
-                    isPresented: $showBulkEditor,
-                    draftLessons: $draftLessons,
-                    initialText: draftLessons.map(\.title).joined(separator: "\n")
-                )
-            }
-            .onAppear {
-                if selectedStudents.isEmpty, let first = store.state.students.first {
-                    selectedStudents.insert(first.id)
-                }
-                syncBulkOutlineText()
-            }
-        }
-    }
-
-    // MARK: - Hero Course Card
-    @ViewBuilder
-    private var heroCourseCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("COURSE IDENTITY")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Sage.accent)
-
-                    TextField("Subject title (e.g. Science)", text: $courseTitle)
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(.primary)
-                        .accessibilityIdentifier("courseTitle")
-                }
-
-                Spacer()
-
-                // Circular visual progress & count ring (Large & Legible)
-                ZStack {
-                    Circle()
-                        .stroke(Color(.tertiarySystemFill), lineWidth: 5.5)
-                    Circle()
-                        .trim(from: 0, to: CGFloat(min(1.0, max(0.08, Double(validLessonTitles.count) / 36.0))))
-                        .stroke(Sage.accent, style: StrokeStyle(lineWidth: 5.5, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                    VStack(spacing: 0) {
-                        Text("\(validLessonTitles.count)")
-                            .font(.headline.weight(.bold))
-                            .foregroundStyle(Sage.accent)
-                        Text("lessons")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .frame(width: 58, height: 58)
-            }
-
-            // Summary metadata pill (Readable Subheadline)
-            HStack(spacing: 8) {
-                HStack(spacing: 5) {
-                    Image(systemName: "clock.fill")
-                        .font(.caption)
-                    Text("\(validLessonTitles.count) Lessons • \(estimatedWeeks) Weeks")
-                        .font(.subheadline.weight(.semibold))
-                }
-                .foregroundStyle(Sage.accent)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Capsule().fill(Sage.accent.opacity(0.14)))
-
-                if datesLessons, let end = projectedEndDateString {
-                    HStack(spacing: 5) {
-                        Image(systemName: "calendar")
-                            .font(.caption)
-                        Text("Ends \(end)")
-                            .font(.subheadline.weight(.semibold))
-                    }
-                    .foregroundStyle(.primary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Capsule().fill(Color(.tertiarySystemFill)))
-                }
-            }
-        }
-        .padding(18)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(.secondarySystemGroupedBackground))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
-        )
-    }
-
-    // MARK: - Roadmap Section (Linear Milestone Rail)
-    @ViewBuilder
-    private var roadmapSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Curriculum Roadmap")
-                    .font(.headline)
-                Spacer()
-                if !draftLessons.isEmpty {
-                    Button("Clear All") {
-                        withAnimation {
-                            draftLessons.removeAll()
-                            syncBulkOutlineText()
-                        }
-                    }
-                    .font(.caption2)
-                    .foregroundStyle(.red)
-                }
-            }
-
-            // Unit 1 Gateway Header
-            unit1Banner
-
-            // Milestone Nodes
-            if draftLessons.isEmpty {
-                emptyMilestonesPrompt
-            } else {
-                VStack(spacing: 0) {
-                    ForEach(draftLessons.indices, id: \.self) { idx in
-                        RoadmapMilestoneCard(
-                            lesson: $draftLessons[idx],
-                            index: idx,
-                            isFirst: idx == 0,
-                            isLast: idx == draftLessons.count - 1,
-                            onDelete: {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    draftLessons.remove(at: idx)
-                                    syncBulkOutlineText()
-                                }
-                            }
-                        )
-                    }
-
-                    // Inline Spine Extension Node
-                    inlineSpineAdderNode
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var unit1Banner: some View {
-        HStack(spacing: 14) {
-            ZStack {
-                Circle()
-                    .fill(.white.opacity(0.22))
-                    .frame(width: 42, height: 42)
-                Image(systemName: "rocket.fill")
-                    .font(.system(size: 18))
-                    .foregroundStyle(.white)
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("UNIT 1")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.85))
-                Text("Core Curriculum Sequence")
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(.white)
-            }
-
-            Spacer()
-
-            Text("\(validLessonTitles.count) lessons")
-                .font(.subheadline.weight(.bold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(Capsule().fill(.white.opacity(0.25)))
-        }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [Sage.accent, Sage.accent.opacity(0.88)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-        )
-        .shadow(color: Sage.accent.opacity(0.18), radius: 6, y: 3)
-    }
-
-    @ViewBuilder
-    private var inlineSpineAdderNode: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(spacing: 0) {
-                Rectangle()
-                    .fill(Sage.accent.opacity(0.35))
-                    .frame(width: 2, height: 14)
-
-                ZStack {
-                    Circle()
-                        .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [3]))
-                        .foregroundStyle(Sage.accent)
-                        .frame(width: 22, height: 22)
-                    Image(systemName: "plus")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(Sage.accent)
-                }
-            }
-            .frame(width: 20)
-
-            Button {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    addSingleLesson()
-                }
-            } label: {
-                HStack {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.body)
-                    Text("Add Next Lesson")
-                        .font(.body.weight(.semibold))
-                    Spacer()
-                }
-                .foregroundStyle(Sage.accent)
-                .padding(.vertical, 12)
-                .padding(.horizontal, 16)
-                .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(style: StrokeStyle(lineWidth: 1.2, dash: [4]))
-                        .foregroundStyle(Sage.accent.opacity(0.5))
-                )
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("addLessonRow")
-        }
-        .padding(.top, 4)
-    }
-
-    @ViewBuilder
-    private var emptyMilestonesPrompt: some View {
-        VStack(spacing: 10) {
-            Text("No milestone lessons created yet.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Button {
-                addSingleLesson()
-            } label: {
-                Label("Add First Lesson", systemImage: "plus.circle.fill")
-                    .font(.subheadline.bold())
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(Sage.accent)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 16)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Color(.secondarySystemGroupedBackground))
-        )
-    }
-
-    // MARK: - Learners Section
-    @ViewBuilder
-    private var learnersSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Assigned Learners")
-                .font(.headline)
-
-            VStack(spacing: 0) {
-                if store.state.students.isEmpty {
-                    Text("Add a learner on the Family tab first.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .padding(14)
-                }
-                ForEach(store.state.students) { student in
-                    Toggle(student.name, isOn: Binding(
-                        get: { selectedStudents.contains(student.id) },
-                        set: { enabled in
-                            if enabled {
-                                selectedStudents.insert(student.id)
-                            } else {
-                                selectedStudents.remove(student.id)
-                            }
-                        }
-                    ))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-
-                    if student.id != store.state.students.last?.id {
-                        Divider().padding(.leading, 14)
-                    }
-                }
-            }
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(Color(.secondarySystemGroupedBackground))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
-            )
-        }
-    }
-
-    // MARK: - Schedule Section
-    @ViewBuilder
-    private var scheduleSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Schedule & Cadence")
-                .font(.headline)
-
-            VStack(alignment: .leading, spacing: 12) {
-                Toggle("Put lessons on a calendar", isOn: $datesLessons)
-                    .accessibilityIdentifier("datedLessonSchedule")
-
-                if datesLessons {
-                    Divider()
-
-                    DatePicker("Start date", selection: $startDate, displayedComponents: .date)
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Active Days").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 42), spacing: 6)], spacing: 6) {
-                            ForEach(weekdayNames, id: \.0) { weekday in
-                                Button(weekday.1) {
-                                    if weekdays.contains(weekday.0) {
-                                        weekdays.remove(weekday.0)
-                                    } else {
-                                        weekdays.insert(weekday.0)
-                                    }
-                                }
-                                .font(.caption.weight(.semibold))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 7)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(weekdays.contains(weekday.0) ? Sage.accent : Color(.tertiarySystemFill))
-                                )
-                                .foregroundStyle(weekdays.contains(weekday.0) ? .white : .primary)
-                                .accessibilityLabel("\(weekday.1) school day")
-                                .accessibilityValue(weekdays.contains(weekday.0) ? "Selected" : "Not selected")
-                            }
-                        }
-                    }
-
-                    if let projectedEndDateString {
-                        HStack(spacing: 6) {
-                            Image(systemName: "calendar.badge.clock")
-                                .foregroundStyle(Sage.accent)
-                            Text("Projected finish: \(projectedEndDateString)")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(Sage.accent)
-                        }
-                        .padding(.top, 2)
-                    }
-                } else {
-                    Text("Flexible lessons will be available in Plan without a date.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(Color(.secondarySystemGroupedBackground))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
-            )
-        }
-    }
-
-    // MARK: - Bulk Outline Section (For Paste & Automated UI Test Compatibility)
-    @ViewBuilder
-    private var bulkOutlineSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Label("Paste Syllabus / Bulk Text", systemImage: "doc.plaintext")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button("Apply Text") {
-                    applyBulkOutline()
-                }
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(Sage.accent)
-            }
-
-            TextEditor(text: $bulkOutlineText)
-                .frame(minHeight: 70)
-                .padding(8)
-                .background(Color(.tertiarySystemFill))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .accessibilityLabel("Lesson titles")
-                .accessibilityIdentifier("lessonTitles")
-                .onChange(of: bulkOutlineText) { _, newText in
-                    applyBulkOutline(from: newText)
-                }
-        }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Color(.secondarySystemGroupedBackground))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
-        )
-    }
-
-    // MARK: - Floating Bottom Action Dock
-    @ViewBuilder
-    private var floatingBottomDock: some View {
-        HStack(spacing: 10) {
-            Button("+ 5") { addBatch(5) }
-                .buttonStyle(.bordered)
-                .tint(Sage.accent)
-                .font(.caption.weight(.bold))
-
-            Button("+ 10") { addBatch(10) }
-                .buttonStyle(.bordered)
-                .tint(Sage.accent)
-                .font(.caption.weight(.bold))
-
-            Button {
-                showBulkEditor = true
-            } label: {
-                Label("Bulk", systemImage: "doc.text")
-                    .font(.caption.weight(.semibold))
-            }
-            .buttonStyle(.bordered)
-            .accessibilityIdentifier("openBulkEditor")
-
-            Spacer()
-
-            Button("Save Curriculum") {
-                saveCourse()
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(Sage.accent)
-            .font(.subheadline.weight(.bold))
-            .disabled(store.state.students.isEmpty || validLessonTitles.isEmpty || courseTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            .accessibilityIdentifier("saveCourse")
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.08), radius: 10, y: 5)
-        .padding(.horizontal, 16)
-        .padding(.bottom, 6)
-    }
-
-    // MARK: - Actions
-    private func addSingleLesson() {
-        let nextNumber = draftLessons.count + 1
-        draftLessons.append(DraftLesson(title: "Lesson \(nextNumber)"))
-        syncBulkOutlineText()
-    }
-
-    private func addBatch(_ count: Int) {
-        let currentCount = draftLessons.count
-        for i in 1...count {
-            draftLessons.append(DraftLesson(title: "Lesson \(currentCount + i)"))
-        }
-        syncBulkOutlineText()
-    }
-
-    private func syncBulkOutlineText() {
-        bulkOutlineText = draftLessons.map(\.title).joined(separator: "\n")
-    }
-
-    private func applyBulkOutline(from text: String? = nil) {
-        let source = text ?? bulkOutlineText
-        let lines = source.components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        if !lines.isEmpty {
-            let currentTitles = draftLessons.map(\.title)
-            if lines != currentTitles {
-                draftLessons = lines.map { DraftLesson(title: $0) }
-            }
-        }
-    }
-
-    private func saveCourse() {
-        if store.addCourse(
-            title: courseTitle,
-            studentIDs: Array(selectedStudents),
-            lessonTitles: validLessonTitles,
-            startDay: datesLessons ? SchoolDate.string(startDate) : nil,
-            weekdays: weekdays
-        ) {
-            dismiss()
-        }
-    }
-}
-
-private struct BulkLessonsSheet: View {
-    @Binding var isPresented: Bool
-    @Binding var draftLessons: [DraftLesson]
-    @State private var text: String
-
-    init(isPresented: Binding<Bool>, draftLessons: Binding<[DraftLesson]>, initialText: String) {
-        self._isPresented = isPresented
-        self._draftLessons = draftLessons
-        self._text = State(initialValue: initialText)
-    }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Paste or Edit Lesson Titles") {
-                    Text("Type or paste lesson titles, one per line.").font(.footnote).foregroundStyle(.secondary)
-                    TextEditor(text: $text)
-                        .frame(minHeight: 220)
+                if store.presentedError != nil {
+                    Section { SaveErrorBanner() }
+                }
+                Section("Course") {
+                    TextField("Course title", text: $courseTitle)
+                        .accessibilityIdentifier("courseTitle")
+                    Text("Use one lesson title per line.").font(.footnote).foregroundStyle(.secondary)
+                    TextEditor(text: $lessonText)
+                        .frame(minHeight: 130)
+                        .accessibilityLabel("Lesson titles")
+                        .accessibilityIdentifier("lessonTitles")
+                }
+                Section("Learners") {
+                    if store.state.students.isEmpty {
+                        Text("Add a learner on the Family tab first.").foregroundStyle(.secondary)
+                    }
+                    ForEach(store.state.students) { student in
+                        Toggle(student.name, isOn: Binding(
+                            get: { selectedStudents.contains(student.id) },
+                            set: { enabled in
+                                if enabled {
+                                    selectedStudents.insert(student.id)
+                                } else {
+                                    selectedStudents.remove(student.id)
+                                }
+                            }
+                        ))
+                    }
+                }
+                Section("Schedule") {
+                    Toggle("Put lessons on a calendar", isOn: $datesLessons)
+                        .accessibilityIdentifier("datedLessonSchedule")
+                    if datesLessons {
+                        DatePicker("Start date", selection: $startDate, displayedComponents: .date)
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 58), spacing: 8)], spacing: 8) {
+                            ForEach(weekdayNames, id: \.0) { weekday in
+                                Button(weekday.1) {
+                                    if weekdays.contains(weekday.0) { weekdays.remove(weekday.0) } else { weekdays.insert(weekday.0) }
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(weekdays.contains(weekday.0) ? Sage.accent : .gray)
+                                .accessibilityLabel("\(weekday.1) school day")
+                                .accessibilityValue(weekdays.contains(weekday.0) ? "Selected" : "Not selected")
+                            }
+                        }
+                    } else {
+                        Text("Flexible lessons will be available in Plan without a date.").font(.footnote).foregroundStyle(.secondary)
+                    }
                 }
             }
-            .navigationTitle("Bulk Lesson Editor")
+            .scrollDismissesKeyboard(.interactively)
+            .navigationTitle("Build Sequence")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { isPresented = false }
-                }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: dismiss.callAsFunction) }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Apply") {
-                        let lines = text.components(separatedBy: .newlines)
-                            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                            .filter { !$0.isEmpty }
-                        draftLessons = lines.map { DraftLesson(title: $0) }
-                        isPresented = false
+                    Button("Create") {
+                        let lessons = lessonText.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+                        if store.addCourse(title: courseTitle, studentIDs: Array(selectedStudents), lessonTitles: lessons, startDay: datesLessons ? SchoolDate.string(startDate) : nil, weekdays: weekdays) { dismiss() }
                     }
-                    .font(.headline)
+                    .disabled(store.state.students.isEmpty)
+                    .accessibilityIdentifier("saveCourse")
                 }
             }
         }
     }
 }
+
 
 struct RecordsView: View {
     @EnvironmentObject private var store: HomeschoolStore
@@ -1489,15 +1198,52 @@ struct RecordsView: View {
 
     private var totalMinutes: Int { store.state.attendance.reduce(0) { $0 + $1.minutes } }
     private var activityMinutes: Int { store.state.activities.reduce(0) { $0 + $1.minutes } }
+    private var totalAttendanceDays: Int { store.state.attendance.count }
+    private var annualTargetDays: Double { 180.0 }
+    private var complianceProgress: Double { min(1.0, Double(totalAttendanceDays) / annualTargetDays) }
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Everything you’ve done").font(.caption).foregroundStyle(.secondary)
-                        Text("Real progress, kept locally.").font(.title2.bold())
-                        HStack {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack(alignment: .top, spacing: 16) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("ACADEMIC COMPLIANCE")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(Sage.accent)
+                                Text("Annual Learning Chronicle")
+                                    .font(.title2.weight(.bold))
+                                Text("Tracking towards 180 required school days.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            ZStack {
+                                Circle()
+                                    .stroke(Color(.tertiarySystemFill), lineWidth: 7)
+                                Circle()
+                                    .trim(from: 0, to: CGFloat(max(0.04, complianceProgress)))
+                                    .stroke(Sage.accent, style: StrokeStyle(lineWidth: 7, lineCap: .round))
+                                    .rotationEffect(.degrees(-90))
+
+                                VStack(spacing: 0) {
+                                    Text("\(totalAttendanceDays)")
+                                        .font(.system(size: 17, weight: .bold))
+                                        .foregroundStyle(Sage.accent)
+                                    Text("/ 180")
+                                        .font(.caption2.weight(.bold))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .frame(width: 64, height: 64)
+                        }
+
+                        Divider()
+
+                        HStack(spacing: 8) {
                             Metric(title: "Attendance", value: "\(store.state.attendance.count) learner-days")
                             Metric(title: "Confirmed", value: Hours(minutes: totalMinutes))
                             Metric(title: "Activities", value: Hours(minutes: activityMinutes))
@@ -1505,22 +1251,73 @@ struct RecordsView: View {
                     }
                     .padding(.vertical, 8)
                 }
+
                 Section("Learning records") {
-                    Button { showAttendance = true } label: { Label("Attendance & hours", systemImage: "checkmark.circle") }
-                        .accessibilityIdentifier("openAttendance")
-                    Button { showActivity = true } label: { Label("Log retrospective activity", systemImage: "clock.arrow.circlepath") }
-                        .accessibilityIdentifier("addActivity")
+                    Button { showAttendance = true } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(Sage.accent)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Attendance & hours")
+                                    .font(.headline.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                Text("Daily attendance log and instructional hours")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .accessibilityIdentifier("openAttendance")
+
+                    Button { showActivity = true } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "clock.arrow.circlepath")
+                                .font(.title3)
+                                .foregroundStyle(Sage.accent)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Log retrospective activity")
+                                    .font(.headline.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                Text("Field trips, science labs, nature walks")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .accessibilityIdentifier("addActivity")
                 }
+
                 Section("Recent activity") {
                     if store.state.activities.isEmpty && store.state.attendance.isEmpty {
                         Text("Confirmed attendance and activities will appear here.").foregroundStyle(.secondary)
                     }
                     ForEach(store.state.activities.sorted { $0.day > $1.day }.prefix(12)) { activity in
-                        VStack(alignment: .leading) {
-                            Text(activity.title)
-                            Text("\(store.student(for: activity.studentID)?.name ?? "Unknown learner") · \(SchoolDate.short(activity.day)) · \(Hours(minutes: activity.minutes))")
-                                .font(.caption).foregroundStyle(.secondary)
+                        HStack(spacing: 12) {
+                            Text(activityEmoji(for: activity.title))
+                                .font(.title3)
+                                .frame(width: 36, height: 36)
+                                .background(Color(.tertiarySystemFill), in: Circle())
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(activity.title)
+                                    .font(.headline.weight(.semibold))
+                                Text("\(store.student(for: activity.studentID)?.name ?? "Unknown learner") · \(SchoolDate.short(activity.day)) · \(Hours(minutes: activity.minutes))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
+                        .padding(.vertical, 4)
                     }
                 }
             }
@@ -1529,6 +1326,17 @@ struct RecordsView: View {
             .sheet(isPresented: $showAttendance) { AttendanceView() }
             .sheet(isPresented: $showActivity) { ActivityLogView() }
         }
+    }
+
+    private func activityEmoji(for title: String) -> String {
+        let lower = title.lowercased()
+        if lower.contains("museum") || lower.contains("trip") || lower.contains("tour") { return "🏛️" }
+        if lower.contains("nature") || lower.contains("hike") || lower.contains("walk") || lower.contains("park") { return "🌲" }
+        if lower.contains("lab") || lower.contains("experiment") || lower.contains("science") { return "🔬" }
+        if lower.contains("art") || lower.contains("craft") || lower.contains("draw") { return "🎨" }
+        if lower.contains("music") || lower.contains("piano") || lower.contains("sing") { return "🎵" }
+        if lower.contains("sport") || lower.contains("swim") || lower.contains("gym") { return "🏃‍♂️" }
+        return "⭐"
     }
 }
 
@@ -1664,31 +1472,72 @@ struct FamilyView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("Your learning team").font(.caption).foregroundStyle(.secondary)
-                    Text("Family").font(.largeTitle.bold())
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Your learning team").font(.caption.weight(.bold)).foregroundStyle(Sage.accent)
+                        Text("Family").font(.largeTitle.bold())
+                        Text("Manage learner profiles and local settings.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
                 }
+
                 Section("Learners") {
                     if store.state.students.isEmpty {
                         ContentUnavailableView("No learners yet", systemImage: "person.2.badge.plus", description: Text("Add each learner to start planning independent work."))
                     } else {
                         ForEach(store.state.students) { student in
-                            HStack {
-                                Image(systemName: "person.fill").foregroundStyle(Sage.accent)
-                                VStack(alignment: .leading) {
-                                    Text(student.name)
-                                    Text(student.gradeLevel.isEmpty ? "Grade level not set" : student.gradeLevel)
-                                        .font(.caption).foregroundStyle(.secondary)
+                            let studentAssignments = store.state.assignments.filter { $0.studentID == student.id }
+                            let completed = studentAssignments.filter { $0.status == .completed }.count
+                            let attendanceCount = store.state.attendance.filter { $0.studentID == student.id }.count
+
+                            HStack(alignment: .center, spacing: 14) {
+                                ZStack {
+                                    Circle()
+                                        .fill(Sage.accent.gradient)
+                                        .frame(width: 44, height: 44)
+                                    Text(String(student.name.prefix(1)).uppercased())
+                                        .font(.title3.weight(.bold))
+                                        .foregroundStyle(.white)
                                 }
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack(spacing: 8) {
+                                        Text(student.name)
+                                            .font(.headline.weight(.bold))
+                                            .foregroundStyle(.primary)
+
+                                        Text(student.gradeLevel.isEmpty ? "Grade level not set" : "Grade \(student.gradeLevel)")
+                                            .font(.caption.weight(.bold))
+                                            .foregroundStyle(Sage.accent)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 2)
+                                            .background(Capsule().fill(Sage.accent.opacity(0.12)))
+                                    }
+
+                                    Text("\(completed) lessons completed · \(attendanceCount) attendance days")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer()
                             }
+                            .padding(.vertical, 4)
                         }
                     }
+
                     Button("Add Learner", systemImage: "plus") { showAddStudent = true }
+                        .font(.headline.weight(.semibold))
                         .accessibilityIdentifier("addStudent")
                 }
-                Section("Your data") {
-                    Label("Saved on this device", systemImage: "internaldrive")
+
+                Section("Your data & privacy") {
+                    Label("Saved on this device", systemImage: "lock.shield.fill")
+                        .font(.headline)
+                        .foregroundStyle(Sage.accent)
                     Text("This milestone keeps school records locally. It does not create accounts, billing, grades, transcripts, or cloud sync.")
-                        .font(.footnote).foregroundStyle(.secondary)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
             }
             .navigationTitle("Family")
@@ -1853,17 +1702,85 @@ private struct ProgressCard: View {
     let completed: Int
     let total: Int
     private var progress: Double { total == 0 ? 0 : Double(completed) / Double(total) }
+    private var percent: Int { total == 0 ? 0 : Int((Double(completed) / Double(total)) * 100) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Family progress").font(.caption).textCase(.uppercase).foregroundStyle(.secondary)
-            Text("\(completed) of \(total) lessons complete").font(.title3.bold())
-            ProgressView(value: progress).tint(Sage.accent)
-                .accessibilityLabel("Family progress")
-                .accessibilityValue("\(completed) of \(total) lessons complete")
+        HStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("DAILY ORBIT")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Sage.accent)
+
+                Text("\(completed) of \(total) lessons complete")
+                    .font(.title3.weight(.bold))
+
+                if total > 0 {
+                    let remaining = total - completed
+                    if remaining > 0 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "clock")
+                                .font(.caption.weight(.bold))
+                            Text("\(remaining) lesson\(remaining == 1 ? "" : "s") remaining today")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .foregroundStyle(.secondary)
+                    } else {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.caption.weight(.bold))
+                            Text("All scheduled work complete!")
+                                .font(.subheadline.weight(.bold))
+                        }
+                        .foregroundStyle(Sage.accent)
+                    }
+                } else {
+                    Text("No lessons scheduled yet")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                // Preserved for automated accessibility audits and UITest assertions
+                ProgressView(value: progress)
+                    .tint(Sage.accent)
+                    .accessibilityLabel("Family progress")
+                    .accessibilityValue("\(completed) of \(total) lessons complete")
+            }
+
+            Spacer()
+
+            // Circular Daily Orbit completion gauge
+            ZStack {
+                Circle()
+                    .stroke(Color(.tertiarySystemFill), lineWidth: 7)
+                Circle()
+                    .trim(from: 0, to: CGFloat(min(1.0, max(0.0, progress))))
+                    .stroke(
+                        Sage.accent,
+                        style: StrokeStyle(lineWidth: 7, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+                    .animation(.spring(response: 0.5, dampingFraction: 0.8), value: progress)
+
+                VStack(spacing: 0) {
+                    Text("\(percent)%")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(Sage.accent)
+                    Text("Done")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 68, height: 68)
         }
-        .padding()
-        .background(Sage.soft, in: RoundedRectangle(cornerRadius: 22))
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color(.secondarySystemGroupedBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
+        )
     }
 }
 
