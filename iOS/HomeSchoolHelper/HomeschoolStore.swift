@@ -8,6 +8,8 @@ final class HomeschoolStore: ObservableObject {
     @Published private(set) var loadError: String?
     @Published var presentedError: AppMessage?
     @Published private(set) var isSaving = false
+    @Published var isStudentModeActive: Bool = false
+    @Published var activeStudentModeStudentID: UUID? = nil
 
     private let repository: any SchoolRepository
 
@@ -53,15 +55,18 @@ final class HomeschoolStore: ObservableObject {
     }
 
     @discardableResult
-    func addCourse(title: String, studentIDs: [UUID], lessonTitles: [String], startDay: String?, weekdays: Set<Int>) -> Bool {
+    func addCourse(title: String, studentIDs: [UUID], lessonTitles: [String], startDay: String?, weekdays: Set<Int>, creditHours: Double? = nil, weight: Double? = nil) -> Bool {
         update("create lesson sequence") { state in
-            _ = try state.addCourse(
+            let courseID = try state.addCourse(
                 title: title,
                 studentIDs: studentIDs,
                 lessonTitles: lessonTitles,
                 startDay: startDay,
                 weekdays: weekdays
             )
+            if creditHours != nil || weight != nil {
+                try state.updateCourseCredits(id: courseID, creditHours: creditHours, weight: weight)
+            }
         }
     }
 
@@ -91,6 +96,85 @@ final class HomeschoolStore: ObservableObject {
         update("reschedule overdue lessons") { state in
             _ = try state.rescheduleOverdueAssignments(to: targetDay, studentID: studentID)
         }
+    }
+
+    @discardableResult
+    func rescheduleOverduePaced(
+        from startDay: String = SchoolDate.today,
+        studentID: UUID? = nil,
+        weekdays: Set<Int> = [2, 3, 4, 5, 6]
+    ) -> PacedRescheduleResult? {
+        var result: PacedRescheduleResult?
+        let ok = update("smart paced reschedule") { state in
+            result = try state.rescheduleOverduePaced(from: startDay, studentID: studentID, weekdays: weekdays)
+        }
+        return ok ? result : nil
+    }
+
+    func enterStudentMode(for studentID: UUID? = nil) {
+        activeStudentModeStudentID = studentID ?? state.students.first?.id
+        isStudentModeActive = true
+    }
+
+    @discardableResult
+    func exitStudentMode(pin: String) -> Bool {
+        guard verifyParentPIN(pin) else { return false }
+        isStudentModeActive = false
+        activeStudentModeStudentID = nil
+        return true
+    }
+
+    @discardableResult
+    func setParentPIN(_ pin: String?) -> Bool {
+        update("update parent PIN") { state in
+            try state.setParentPIN(pin)
+        }
+    }
+
+    func verifyParentPIN(_ pin: String) -> Bool {
+        state.verifyParentPIN(pin)
+    }
+
+    var hasParentPIN: Bool {
+        state.parentPIN != nil
+    }
+
+    @discardableResult
+    func setSelectedStateCode(_ code: String?) -> Bool {
+        update("update home state compliance") { state in
+            try state.setSelectedStateCode(code)
+        }
+    }
+
+    var selectedStatePreset: StateCompliancePreset? {
+        guard let code = state.selectedStateCode else { return nil }
+        return StateCompliancePreset.preset(for: code)
+    }
+
+    @discardableResult
+    func setAssignmentGrade(id: UUID, grade: Double?, notes: String? = nil) -> Bool {
+        update("grade assignment") { state in
+            try state.setAssignmentGrade(id: id, grade: grade, notes: notes)
+        }
+    }
+
+    @discardableResult
+    func updateCourseCredits(id: UUID, creditHours: Double?, weight: Double?) -> Bool {
+        update("update course credits") { state in
+            try state.updateCourseCredits(id: id, creditHours: creditHours, weight: weight)
+        }
+    }
+
+    func courseGrade(for studentID: UUID, courseID: UUID) -> Double? {
+        state.courseGrade(for: studentID, courseID: courseID)
+    }
+
+    func courseCreditsEarned(for studentID: UUID, courseID: UUID) -> Double {
+        state.courseCreditsEarned(for: studentID, courseID: courseID)
+    }
+
+    func cumulativeGPA(for studentID: UUID, weighted: Bool) -> Double? {
+        state.cumulativeGPA(for: studentID, weighted: weighted)
     }
 
     func overdueAssignments(asOf day: String = SchoolDate.today, studentID: UUID? = nil) -> [Assignment] {

@@ -16,6 +16,8 @@ struct HomeTabView: View {
         Group {
             if let message = store.loadError {
                 LoadFailureView(message: message, retry: store.load)
+            } else if store.isStudentModeActive {
+                StudentModeView()
             } else if store.state.students.isEmpty && !hasDismissedOnboarding {
                 OnboardingView(onExplore: {
                     withAnimation(.easeInOut(duration: 0.3)) {
@@ -71,6 +73,7 @@ struct TodayView: View {
     @State private var selectedDay = SchoolDate.today
     @State private var showNewStudent = false
     @State private var showNewCourse = false
+    @State private var showPacedReschedule = false
 
     private var displayed: [Assignment] {
         store.state.assignments
@@ -140,9 +143,27 @@ struct TodayView: View {
             }
             .background(Sage.background.ignoresSafeArea())
             .navigationTitle("Today")
-            .toolbar { SaveStatusToolbar() }
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if !store.state.students.isEmpty {
+                        Button {
+                            store.enterStudentMode(for: studentID)
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "person.crop.circle.badge.checkmark")
+                                Text("Student Mode")
+                                    .font(.subheadline.weight(.semibold))
+                            }
+                            .foregroundStyle(Sage.accent)
+                        }
+                        .accessibilityIdentifier("todayEnterStudentModeButton")
+                    }
+                }
+                SaveStatusToolbar()
+            }
             .sheet(isPresented: $showNewStudent) { AddStudentView() }
             .sheet(isPresented: $showNewCourse) { SequenceBuilderView() }
+            .sheet(isPresented: $showPacedReschedule) { SmartPacedRescheduleSheet(studentID: studentID) }
         }
     }
 
@@ -198,11 +219,17 @@ struct TodayView: View {
 
         let overdue = overdueAssignments
         if selectedDay == SchoolDate.today && !overdue.isEmpty {
-            OverdueCatchUpCard(overdueCount: overdue.count) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                    _ = store.rescheduleOverdue(to: SchoolDate.today, studentID: studentID)
+            OverdueCatchUpCard(
+                overdueCount: overdue.count,
+                onCatchUp: {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                        _ = store.rescheduleOverdue(to: SchoolDate.today, studentID: studentID)
+                    }
+                },
+                onPacedPush: {
+                    showPacedReschedule = true
                 }
-            }
+            )
         }
 
         ProgressCard(completed: completedCount, total: displayed.count)
@@ -275,28 +302,41 @@ struct TodayView: View {
 private struct OverdueCatchUpCard: View {
     let overdueCount: Int
     let onCatchUp: () -> Void
+    let onPacedPush: () -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: 14) {
-            Image(systemName: "clock.badge.exclamationmark")
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(.orange)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: "clock.badge.exclamationmark")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(.orange)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(overdueCount) Past Lesson\(overdueCount == 1 ? "" : "s") Unfinished")
-                    .font(.headline.weight(.bold))
-                Text("Catch up with a single tap.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(overdueCount) Past Lesson\(overdueCount == 1 ? "" : "s") Unfinished")
+                        .font(.headline.weight(.bold))
+                    Text("Choose how you'd like to reschedule:")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
             }
 
-            Spacer(minLength: 4)
-
-            Button("Move to Today", action: onCatchUp)
-                .font(.subheadline.bold())
+            HStack(spacing: 10) {
+                Button(action: onPacedPush) {
+                    Label("Smart Pacing", systemImage: "sparkles")
+                        .font(.subheadline.bold())
+                        .frame(maxWidth: .infinity)
+                }
                 .buttonStyle(.borderedProminent)
-                .tint(.orange)
-                .accessibilityIdentifier("catchUpOverdue")
+                .tint(Sage.accent)
+                .accessibilityIdentifier("pacedCatchUpButton")
+
+                Button("Move to Today", action: onCatchUp)
+                    .font(.subheadline.bold())
+                    .buttonStyle(.bordered)
+                    .tint(.orange)
+                    .accessibilityIdentifier("catchUpOverdue")
+            }
         }
         .padding(16)
         .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 18))
@@ -304,6 +344,121 @@ private struct OverdueCatchUpCard: View {
             RoundedRectangle(cornerRadius: 18)
                 .stroke(Color.orange.opacity(0.25), lineWidth: 1)
         )
+    }
+}
+
+private struct SmartPacedRescheduleSheet: View {
+    @EnvironmentObject private var store: HomeschoolStore
+    @Environment(\.dismiss) private var dismiss
+
+    let studentID: UUID?
+    @State private var startDay = SchoolDate.today
+    @State private var weekdays: Set<Int> = [2, 3, 4, 5, 6]
+    @State private var rescheduleResult: PacedRescheduleResult?
+
+    private var overdueCount: Int {
+        store.overdueAssignments(asOf: SchoolDate.today, studentID: studentID).count
+    }
+
+    private let weekdayOptions = [
+        (2, "Mon"), (3, "Tue"), (4, "Wed"), (5, "Thu"), (6, "Fri"), (7, "Sat"), (1, "Sun")
+    ]
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label("Smart Paced Rescheduling", systemImage: "sparkles")
+                            .font(.headline)
+                            .foregroundStyle(Sage.accent)
+                        Text("Rather than overloading one day, lessons are spaced out sequentially across upcoming school days without double-booking subjects.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                Section("Pacing Options") {
+                    DatePicker(
+                        "Start Date",
+                        selection: Binding(
+                            get: { SchoolDate.date(startDay) ?? Date() },
+                            set: { startDay = SchoolDate.string($0) }
+                        ),
+                        displayedComponents: .date
+                    )
+                    .accessibilityIdentifier("pacedStartDatePicker")
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Active School Days")
+                            .font(.subheadline.weight(.medium))
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 58), spacing: 8)], spacing: 8) {
+                            ForEach(weekdayOptions, id: \.0) { option in
+                                Button(option.1) {
+                                    if weekdays.contains(option.0) {
+                                        if weekdays.count > 1 { weekdays.remove(option.0) }
+                                    } else {
+                                        weekdays.insert(option.0)
+                                    }
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(weekdays.contains(option.0) ? Sage.accent : .gray)
+                                .accessibilityLabel("\(option.1) pacing day")
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                Section("Reschedule Impact") {
+                    LabeledContent("Overdue Lessons Found", value: "\(overdueCount)")
+                    if let result = rescheduleResult {
+                        LabeledContent("Lessons Rescheduled", value: "\(result.rescheduledCount)")
+                        LabeledContent("Subjects Paced", value: "\(result.affectedCoursesCount)")
+                        if let newDay = result.newCompletionDay {
+                            LabeledContent("Projected Syllabus Finish", value: SchoolDate.short(newDay))
+                        }
+                    }
+                }
+
+                Section {
+                    Button {
+                        applyPacedReschedule()
+                    } label: {
+                        HStack {
+                            Spacer()
+                            Label("Apply Smart Pacing", systemImage: "calendar.badge.clock")
+                                .font(.headline)
+                            Spacer()
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Sage.accent)
+                    .disabled(overdueCount == 0 || weekdays.isEmpty)
+                    .accessibilityIdentifier("confirmSmartPacedRescheduleButton")
+                }
+            }
+            .navigationTitle("Smart Reschedule")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: dismiss.callAsFunction)
+                }
+            }
+        }
+    }
+
+    private func applyPacedReschedule() {
+        if let result = store.rescheduleOverduePaced(
+            from: startDay,
+            studentID: studentID,
+            weekdays: weekdays
+        ) {
+            rescheduleResult = result
+            dismiss()
+        }
     }
 }
 
@@ -712,11 +867,33 @@ private struct AssignmentStatusSheet: View {
     let assignment: Assignment
     @State private var status: AssignmentStatus
     @State private var completionDate: Date
+    @State private var gradeString: String
+    @State private var notes: String
 
     init(assignment: Assignment) {
         self.assignment = assignment
         _status = State(initialValue: assignment.status)
         _completionDate = State(initialValue: SchoolDate.date(assignment.completedDay) ?? Date())
+        _gradeString = State(initialValue: assignment.grade.map { String(format: "%g", $0) } ?? "")
+        _notes = State(initialValue: assignment.notes ?? "")
+    }
+
+    private var previewLetterGrade: String? {
+        guard let g = Double(gradeString.trimmingCharacters(in: .whitespacesAndNewlines)), (0...100).contains(g) else { return nil }
+        switch g {
+        case 93...: return "A"
+        case 90..<93: return "A-"
+        case 87..<90: return "B+"
+        case 83..<87: return "B"
+        case 80..<83: return "B-"
+        case 77..<80: return "C+"
+        case 73..<77: return "C"
+        case 70..<73: return "C-"
+        case 67..<70: return "D+"
+        case 63..<67: return "D"
+        case 60..<63: return "D-"
+        default: return "F"
+        }
     }
 
     var body: some View {
@@ -735,9 +912,32 @@ private struct AssignmentStatusSheet: View {
                 if status == .completed {
                     Section("Completion") {
                         DatePicker("Completed on", selection: $completionDate, displayedComponents: .date)
-                        Text("Completing a lesson does not record attendance or a grade.")
+                        Text("Completing a lesson marks it done for this learner.")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
+                }
+                Section("Academic Evaluation (Optional)") {
+                    HStack {
+                        Text("Score / Grade")
+                        Spacer()
+                        TextField("0 - 100", text: $gradeString)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(maxWidth: 90)
+                            .accessibilityIdentifier("assignmentGradeField")
+                        if !gradeString.isEmpty {
+                            Text("%")
+                                .foregroundStyle(.secondary)
+                        }
+                        if let preview = previewLetterGrade {
+                            Text("(\(preview))")
+                                .font(.headline)
+                                .foregroundStyle(Sage.accent)
+                        }
+                    }
+                    TextField("Teacher notes or feedback", text: $notes, axis: .vertical)
+                        .lineLimit(2...4)
+                        .accessibilityIdentifier("assignmentNotesField")
                 }
             }
             .navigationTitle("Update Lesson")
@@ -745,7 +945,20 @@ private struct AssignmentStatusSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: dismiss.callAsFunction) }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        if store.setStatus(assignment, status: status, completedDay: status == .completed ? SchoolDate.string(completionDate) : nil) { dismiss() }
+                        if store.setStatus(assignment, status: status, completedDay: status == .completed ? SchoolDate.string(completionDate) : nil) {
+                            let trimmedGrade = gradeString.trimmingCharacters(in: .whitespacesAndNewlines)
+                            let parsedGrade = trimmedGrade.isEmpty ? nil : Double(trimmedGrade)
+                            let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+                            let cleanNotes = trimmedNotes.isEmpty ? nil : trimmedNotes
+
+                            if !trimmedGrade.isEmpty && parsedGrade == nil {
+                                store.presentedError = AppMessage(title: "Invalid Grade", message: "Grade must be a valid number between 0 and 100.")
+                                return
+                            }
+                            if store.setAssignmentGrade(id: assignment.id, grade: parsedGrade, notes: cleanNotes) {
+                                dismiss()
+                            }
+                        }
                     }
                     .accessibilityIdentifier("saveAssignmentStatus")
                 }
@@ -1274,10 +1487,16 @@ private struct EditCourseView: View {
     @Environment(\.dismiss) private var dismiss
     let course: Course
     @State private var title: String
+    @State private var hasCredits: Bool
+    @State private var creditHours: Double
+    @State private var weight: Double
 
     init(course: Course) {
         self.course = course
         _title = State(initialValue: course.title)
+        _hasCredits = State(initialValue: course.creditHours != nil)
+        _creditHours = State(initialValue: course.creditHours ?? 1.0)
+        _weight = State(initialValue: course.weight ?? 4.0)
     }
 
     var body: some View {
@@ -1290,6 +1509,36 @@ private struct EditCourseView: View {
                     TextField("Course title", text: $title)
                         .accessibilityIdentifier("editCourseTitle")
                 }
+                Section("High School & Academic Transcript") {
+                    Toggle("Award Academic Credits", isOn: $hasCredits)
+                        .accessibilityIdentifier("editCourseHasCreditsToggle")
+                    if hasCredits {
+                        HStack {
+                            Text("Credit Hours")
+                            Spacer()
+                            Picker("Credit Hours", selection: $creditHours) {
+                                Text("0.25 Credit (Quarter Year)").tag(0.25)
+                                Text("0.50 Credit (One Semester)").tag(0.5)
+                                Text("1.00 Credit (Full Year)").tag(1.0)
+                                Text("1.50 Credits").tag(1.5)
+                                Text("2.00 Credits").tag(2.0)
+                            }
+                            .pickerStyle(.menu)
+                            .accessibilityIdentifier("editCourseCreditHoursPicker")
+                        }
+                        HStack {
+                            Text("GPA Weight Scale")
+                            Spacer()
+                            Picker("GPA Weight Scale", selection: $weight) {
+                                Text("Standard (4.0)").tag(4.0)
+                                Text("Honors (+0.5 / 4.5)").tag(4.5)
+                                Text("AP / College (+1.0 / 5.0)").tag(5.0)
+                            }
+                            .pickerStyle(.menu)
+                            .accessibilityIdentifier("editCourseWeightPicker")
+                        }
+                    }
+                }
             }
             .navigationTitle("Edit Subject")
             .toolbar {
@@ -1297,7 +1546,11 @@ private struct EditCourseView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         if store.updateCourse(id: course.id, title: title) {
-                            dismiss()
+                            let credits = hasCredits ? creditHours : nil
+                            let w = hasCredits ? weight : nil
+                            if store.updateCourseCredits(id: course.id, creditHours: credits, weight: w) {
+                                dismiss()
+                            }
                         }
                     }
                     .accessibilityIdentifier("saveEditCourse")
@@ -1388,6 +1641,9 @@ private struct SequenceBuilderView: View {
     @State private var datesLessons = true
     @State private var startDate = Date()
     @State private var weekdays: Set<Int> = [2, 3, 4, 5, 6]
+    @State private var hasCredits = false
+    @State private var creditHours: Double = 1.0
+    @State private var weight: Double = 4.0
 
     private let weekdayNames = [(2, "Mon"), (3, "Tue"), (4, "Wed"), (5, "Thu"), (6, "Fri"), (7, "Sat"), (1, "Sun")]
 
@@ -1444,6 +1700,36 @@ private struct SequenceBuilderView: View {
                         Text("Flexible lessons will be available in Plan without a date.").font(.footnote).foregroundStyle(.secondary)
                     }
                 }
+                Section("High School & Academic Transcript (Optional)") {
+                    Toggle("Award Academic Credits", isOn: $hasCredits)
+                        .accessibilityIdentifier("sequenceHasCreditsToggle")
+                    if hasCredits {
+                        HStack {
+                            Text("Credit Hours")
+                            Spacer()
+                            Picker("Credit Hours", selection: $creditHours) {
+                                Text("0.25 Credit (Quarter Year)").tag(0.25)
+                                Text("0.50 Credit (One Semester)").tag(0.5)
+                                Text("1.00 Credit (Full Year)").tag(1.0)
+                                Text("1.50 Credits").tag(1.5)
+                                Text("2.00 Credits").tag(2.0)
+                            }
+                            .pickerStyle(.menu)
+                            .accessibilityIdentifier("sequenceCreditHoursPicker")
+                        }
+                        HStack {
+                            Text("GPA Weight Scale")
+                            Spacer()
+                            Picker("GPA Weight Scale", selection: $weight) {
+                                Text("Standard (4.0)").tag(4.0)
+                                Text("Honors (+0.5 / 4.5)").tag(4.5)
+                                Text("AP / College (+1.0 / 5.0)").tag(5.0)
+                            }
+                            .pickerStyle(.menu)
+                            .accessibilityIdentifier("sequenceWeightPicker")
+                        }
+                    }
+                }
             }
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Build Sequence")
@@ -1452,7 +1738,19 @@ private struct SequenceBuilderView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Create") {
                         let lessons = lessonText.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-                        if store.addCourse(title: courseTitle, studentIDs: Array(selectedStudents), lessonTitles: lessons, startDay: datesLessons ? SchoolDate.string(startDate) : nil, weekdays: weekdays) { dismiss() }
+                        let credits = hasCredits ? creditHours : nil
+                        let w = hasCredits ? weight : nil
+                        if store.addCourse(
+                            title: courseTitle,
+                            studentIDs: Array(selectedStudents),
+                            lessonTitles: lessons,
+                            startDay: datesLessons ? SchoolDate.string(startDate) : nil,
+                            weekdays: weekdays,
+                            creditHours: credits,
+                            weight: w
+                        ) {
+                            dismiss()
+                        }
                     }
                     .disabled(store.state.students.isEmpty)
                     .accessibilityIdentifier("saveCourse")
@@ -2038,6 +2336,57 @@ private struct AcademicYearRowView: View {
     }
 }
 
+private struct StatePresetSection: View {
+    @Binding var selectedStateCode: String
+    @Binding var targetDays: Int
+    @Binding var trackHours: Bool
+    @Binding var targetHours: Int
+
+    var body: some View {
+        Section("State Legal Compliance Preset") {
+            Picker("US State Preset", selection: $selectedStateCode) {
+                Text("Choose preset to pre-fill...").tag("")
+                ForEach(StateCompliancePreset.allStates) { preset in
+                    Text("\(preset.name) (\(preset.code))").tag(preset.code)
+                }
+            }
+            .pickerStyle(.menu)
+            .accessibilityIdentifier("academicYearStatePresetPicker")
+            .onChange(of: selectedStateCode) { newCode in
+                guard !newCode.isEmpty, let preset = StateCompliancePreset.preset(for: newCode) else { return }
+                targetDays = preset.defaultDays
+                if let hours = preset.defaultHours {
+                    trackHours = true
+                    targetHours = hours
+                }
+            }
+            if let preset = StateCompliancePreset.preset(for: selectedStateCode) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(preset.name.uppercased())
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(Sage.accent)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Sage.accent.opacity(0.12), in: Capsule())
+                        Spacer()
+                        Text("\(preset.defaultDays) days")
+                            .font(.caption.weight(.semibold))
+                        if let hrs = preset.defaultHours {
+                            Text("• \(hrs) hrs")
+                                .font(.caption.weight(.semibold))
+                        }
+                    }
+                    Text(preset.regulatorySummary)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 4)
+            }
+        }
+    }
+}
+
 private struct AddAcademicYearView: View {
     @EnvironmentObject private var store: HomeschoolStore
     @Environment(\.dismiss) private var dismiss
@@ -2048,6 +2397,7 @@ private struct AddAcademicYearView: View {
     @State private var trackHours = false
     @State private var targetHours = 900
     @State private var makeActive = true
+    @State private var selectedStateCode: String = ""
 
     init() {
         let def = SchoolState.defaultAcademicYear()
@@ -2062,6 +2412,13 @@ private struct AddAcademicYearView: View {
                 if store.presentedError != nil {
                     Section { SaveErrorBanner() }
                 }
+
+                StatePresetSection(
+                    selectedStateCode: $selectedStateCode,
+                    targetDays: $targetDays,
+                    trackHours: $trackHours,
+                    targetHours: $targetHours
+                )
 
                 Section("Year Title") {
                     TextField("e.g. 2024–2025", text: $title)
@@ -2089,6 +2446,18 @@ private struct AddAcademicYearView: View {
                 Section {
                     Toggle("Set as Active School Year", isOn: $makeActive)
                         .accessibilityIdentifier("academicYearMakeActiveToggle")
+                }
+            }
+            .onAppear {
+                if selectedStateCode.isEmpty, let defaultState = store.state.selectedStateCode {
+                    selectedStateCode = defaultState
+                    if let preset = StateCompliancePreset.preset(for: defaultState) {
+                        targetDays = preset.defaultDays
+                        if let hours = preset.defaultHours {
+                            trackHours = true
+                            targetHours = hours
+                        }
+                    }
                 }
             }
             .navigationTitle("Add School Year")
@@ -2130,6 +2499,7 @@ private struct EditAcademicYearView: View {
     @State private var targetDays: Int
     @State private var trackHours: Bool
     @State private var targetHours: Int
+    @State private var selectedStateCode: String = ""
 
     init(year: AcademicYear) {
         self.year = year
@@ -2147,6 +2517,13 @@ private struct EditAcademicYearView: View {
                 if store.presentedError != nil {
                     Section { SaveErrorBanner() }
                 }
+
+                StatePresetSection(
+                    selectedStateCode: $selectedStateCode,
+                    targetDays: $targetDays,
+                    trackHours: $trackHours,
+                    targetHours: $targetHours
+                )
 
                 Section("Year Title") {
                     TextField("Title", text: $title)
@@ -2423,6 +2800,8 @@ private struct ExportRecordsSheet: View {
                     csvString = HomeschoolCSVGenerator.generateCurriculumCSV(state: store.state, student: student, year: year)
                 case .chronicle:
                     csvString = HomeschoolCSVGenerator.generateChronicleCSV(state: store.state, student: student, year: year)
+                case .transcript:
+                    csvString = HomeschoolCSVGenerator.generateTranscriptCSV(state: store.state, student: student, year: year)
                 }
                 let data = Data(csvString.utf8)
                 let file = try ExportedReportFile(fileName: "\(baseName).csv", data: data, format: .csv)

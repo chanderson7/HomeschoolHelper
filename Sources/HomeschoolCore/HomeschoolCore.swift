@@ -22,10 +22,31 @@ public struct Student: Codable, Equatable, Sendable, Identifiable {
 public struct Course: Codable, Equatable, Sendable, Identifiable {
     public var id: UUID
     public var title: String
+    public var creditHours: Double?
+    public var weight: Double?
 
-    public init(id: UUID = UUID(), title: String) {
+    public init(
+        id: UUID = UUID(),
+        title: String,
+        creditHours: Double? = nil,
+        weight: Double? = nil
+    ) {
         self.id = id
         self.title = title
+        self.creditHours = creditHours
+        self.weight = weight
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, title, creditHours, weight
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        creditHours = try container.decodeIfPresent(Double.self, forKey: .creditHours)
+        weight = try container.decodeIfPresent(Double.self, forKey: .weight)
     }
 }
 
@@ -50,6 +71,8 @@ public struct Assignment: Codable, Equatable, Sendable, Identifiable {
     public var scheduledDay: String?
     public var status: AssignmentStatus
     public var completedDay: String?
+    public var grade: Double?
+    public var notes: String?
 
     public init(
         id: UUID = UUID(),
@@ -57,7 +80,9 @@ public struct Assignment: Codable, Equatable, Sendable, Identifiable {
         lessonID: UUID,
         scheduledDay: String? = nil,
         status: AssignmentStatus = .planned,
-        completedDay: String? = nil
+        completedDay: String? = nil,
+        grade: Double? = nil,
+        notes: String? = nil
     ) {
         self.id = id
         self.studentID = studentID
@@ -65,6 +90,57 @@ public struct Assignment: Codable, Equatable, Sendable, Identifiable {
         self.scheduledDay = scheduledDay
         self.status = status
         self.completedDay = completedDay
+        self.grade = grade
+        self.notes = notes
+    }
+
+    public var letterGrade: String? {
+        guard let grade else { return nil }
+        switch grade {
+        case 97...: return "A+"
+        case 93..<97: return "A"
+        case 90..<93: return "A-"
+        case 87..<90: return "B+"
+        case 83..<87: return "B"
+        case 80..<83: return "B-"
+        case 77..<80: return "C+"
+        case 73..<77: return "C"
+        case 70..<73: return "C-"
+        case 65..<70: return "D"
+        default: return "F"
+        }
+    }
+
+    public var gradePoint: Double? {
+        guard let grade else { return nil }
+        switch grade {
+        case 93...: return 4.0
+        case 90..<93: return 3.7
+        case 87..<90: return 3.3
+        case 83..<87: return 3.0
+        case 80..<83: return 2.7
+        case 77..<80: return 2.3
+        case 73..<77: return 2.0
+        case 70..<73: return 1.7
+        case 65..<70: return 1.0
+        default: return 0.0
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, studentID, lessonID, scheduledDay, status, completedDay, grade, notes
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        studentID = try container.decode(UUID.self, forKey: .studentID)
+        lessonID = try container.decode(UUID.self, forKey: .lessonID)
+        scheduledDay = try container.decodeIfPresent(String.self, forKey: .scheduledDay)
+        status = try container.decode(AssignmentStatus.self, forKey: .status)
+        completedDay = try container.decodeIfPresent(String.self, forKey: .completedDay)
+        grade = try container.decodeIfPresent(Double.self, forKey: .grade)
+        notes = try container.decodeIfPresent(String.self, forKey: .notes)
     }
 }
 
@@ -153,6 +229,99 @@ public struct AcademicTerm: Codable, Equatable, Sendable, Identifiable {
     }
 }
 
+public struct PacedRescheduleResult: Codable, Equatable, Sendable {
+    public let rescheduledCount: Int
+    public let affectedCoursesCount: Int
+    public let newCompletionDay: String?
+
+    public init(rescheduledCount: Int, affectedCoursesCount: Int, newCompletionDay: String?) {
+        self.rescheduledCount = rescheduledCount
+        self.affectedCoursesCount = affectedCoursesCount
+        self.newCompletionDay = newCompletionDay
+    }
+}
+
+public struct StateCompliancePreset: Codable, Equatable, Sendable, Identifiable {
+    public var id: String { code }
+    public let code: String
+    public let name: String
+    public let defaultDays: Int
+    public let defaultHours: Int?
+    public let regulatorySummary: String
+
+    public init(
+        code: String,
+        name: String,
+        defaultDays: Int,
+        defaultHours: Int? = nil,
+        regulatorySummary: String
+    ) {
+        self.code = code
+        self.name = name
+        self.defaultDays = defaultDays
+        self.defaultHours = defaultHours
+        self.regulatorySummary = regulatorySummary
+    }
+
+    public static func preset(for code: String) -> StateCompliancePreset? {
+        allStates.first { $0.code.uppercased() == code.uppercased() }
+    }
+
+    public static let allStates: [StateCompliancePreset] = [
+        StateCompliancePreset(code: "AL", name: "Alabama", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days standard instructional benchmark."),
+        StateCompliancePreset(code: "AK", name: "Alaska", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days recommended; homeschools operate with high autonomy."),
+        StateCompliancePreset(code: "AZ", name: "Arizona", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days recommended; affidavit of intent required within 30 days."),
+        StateCompliancePreset(code: "AR", name: "Arkansas", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days standard benchmark; annual notice of intent."),
+        StateCompliancePreset(code: "CA", name: "California", defaultDays: 175, defaultHours: nil, regulatorySummary: "175 days required under private school affidavit option."),
+        StateCompliancePreset(code: "CO", name: "Colorado", defaultDays: 172, defaultHours: 688, regulatorySummary: "172 days with an average of 4 hours/day (688 total hours)."),
+        StateCompliancePreset(code: "CT", name: "Connecticut", defaultDays: 180, defaultHours: 900, regulatorySummary: "180 days equivalent instruction in reading, writing, spelling, math, geography, history, and citizenship."),
+        StateCompliancePreset(code: "DE", name: "Delaware", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days attendance tracking required for non-public school reporting."),
+        StateCompliancePreset(code: "DC", name: "District of Columbia", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days of thorough, regular education in required subject areas."),
+        StateCompliancePreset(code: "FL", name: "Florida", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days or equivalent; annual portfolio evaluation required."),
+        StateCompliancePreset(code: "GA", name: "Georgia", defaultDays: 180, defaultHours: 810, regulatorySummary: "180 days equivalent with at least 4.5 hours per school day."),
+        StateCompliancePreset(code: "HI", name: "Hawaii", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days recommended; annual progress reports submitted to local school."),
+        StateCompliancePreset(code: "ID", name: "Idaho", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days recommended; comparable instruction to public school offerings."),
+        StateCompliancePreset(code: "IL", name: "Illinois", defaultDays: 176, defaultHours: nil, regulatorySummary: "176 days standard public school benchmark; instruction in required branches."),
+        StateCompliancePreset(code: "IN", name: "Indiana", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days of instruction required; attendance records must be kept."),
+        StateCompliancePreset(code: "IA", name: "Iowa", defaultDays: 148, defaultHours: nil, regulatorySummary: "148 days of instruction required under independent private instruction options."),
+        StateCompliancePreset(code: "KS", name: "Kansas", defaultDays: 186, defaultHours: 1116, regulatorySummary: "186 days (or 1,116 hours) required under non-accredited private school laws."),
+        StateCompliancePreset(code: "KY", name: "Kentucky", defaultDays: 180, defaultHours: 1062, regulatorySummary: "180 days or 1,062 hours of instruction required in core subjects."),
+        StateCompliancePreset(code: "LA", name: "Louisiana", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days required under registered home study or non-public school options."),
+        StateCompliancePreset(code: "ME", name: "Maine", defaultDays: 175, defaultHours: nil, regulatorySummary: "175 days of instruction required; annual assessment submission."),
+        StateCompliancePreset(code: "MD", name: "Maryland", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days recommended; regular thorough instruction verified by portfolio reviews."),
+        StateCompliancePreset(code: "MA", name: "Massachusetts", defaultDays: 180, defaultHours: 900, regulatorySummary: "180 days or 900 hours (elementary) / 990 hours (secondary)."),
+        StateCompliancePreset(code: "MI", name: "Michigan", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days standard benchmark; organized educational program in core subjects."),
+        StateCompliancePreset(code: "MN", name: "Minnesota", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days recommended; instruction in required subjects with annual norm testing."),
+        StateCompliancePreset(code: "MS", name: "Mississippi", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days recommended; certificate of enrollment submitted annually."),
+        StateCompliancePreset(code: "MO", name: "Missouri", defaultDays: 180, defaultHours: 1000, regulatorySummary: "1,000 hours of instruction (at least 600 hours in core academic subjects)."),
+        StateCompliancePreset(code: "MT", name: "Montana", defaultDays: 180, defaultHours: 720, regulatorySummary: "720 hours (grades 1–3) or 1,080 hours (grades 4–12) per year."),
+        StateCompliancePreset(code: "NE", name: "Nebraska", defaultDays: 180, defaultHours: 1032, regulatorySummary: "1,032 hours (elementary) or 1,080 hours (high school) under Rule 13."),
+        StateCompliancePreset(code: "NV", name: "Nevada", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days recommended; one-time notification of intent with educational plan."),
+        StateCompliancePreset(code: "NH", name: "New Hampshire", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days recommended; annual evaluation or standardized test required."),
+        StateCompliancePreset(code: "NJ", name: "New Jersey", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days recommended; instruction equivalent to that given in public schools."),
+        StateCompliancePreset(code: "NM", name: "New Mexico", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days of instruction required; annual notification to state department."),
+        StateCompliancePreset(code: "NY", name: "New York", defaultDays: 180, defaultHours: 900, regulatorySummary: "180 days or 900 hours (grades 1–6) / 990 hours (grades 7–12); quarterly reporting."),
+        StateCompliancePreset(code: "NC", name: "North Carolina", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days of regular instruction required; annual nationally standardized testing."),
+        StateCompliancePreset(code: "ND", name: "North Dakota", defaultDays: 175, defaultHours: 700, regulatorySummary: "175 days with minimum 4 hours/day (700 hours total); annual assessment."),
+        StateCompliancePreset(code: "OH", name: "Ohio", defaultDays: 180, defaultHours: 900, regulatorySummary: "900 hours of instruction per school year; annual notification."),
+        StateCompliancePreset(code: "OK", name: "Oklahoma", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days of instruction required under constitutional homeschooling clause."),
+        StateCompliancePreset(code: "OR", name: "Oregon", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days recommended; notification and standardized testing in grades 3, 5, 8, 10."),
+        StateCompliancePreset(code: "PA", name: "Pennsylvania", defaultDays: 180, defaultHours: 900, regulatorySummary: "180 days or 900 hours (elementary) / 990 hours (secondary); annual evaluator review."),
+        StateCompliancePreset(code: "RI", name: "Rhode Island", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days of attendance and instruction required; approved by local school committee."),
+        StateCompliancePreset(code: "SC", name: "South Carolina", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days of instruction required under Option 1, 2, or 3 homeschool associations."),
+        StateCompliancePreset(code: "SD", name: "South Dakota", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days equivalent; public school exemption notification filed with district."),
+        StateCompliancePreset(code: "TN", name: "Tennessee", defaultDays: 180, defaultHours: 720, regulatorySummary: "180 days with at least 4 hours per day (720 total hours) for independent homeschools."),
+        StateCompliancePreset(code: "TX", name: "Texas", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days recommended; bona fide curriculum covering math, reading, spelling, grammar, and citizenship."),
+        StateCompliancePreset(code: "UT", name: "Utah", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days recommended; signed affidavit of parental responsibility filed with district."),
+        StateCompliancePreset(code: "VT", name: "Vermont", defaultDays: 175, defaultHours: nil, regulatorySummary: "175 days recommended; annual home study enrollment notice and assessment."),
+        StateCompliancePreset(code: "VA", name: "Virginia", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days standard benchmark; annual proof of academic progress due August 1."),
+        StateCompliancePreset(code: "WA", name: "Washington", defaultDays: 180, defaultHours: 1000, regulatorySummary: "180 days or 1,000 hours of instruction required; annual assessment required."),
+        StateCompliancePreset(code: "WV", name: "West Virginia", defaultDays: 180, defaultHours: nil, regulatorySummary: "180 days of instruction required; annual assessment results maintained."),
+        StateCompliancePreset(code: "WI", name: "Wisconsin", defaultDays: 180, defaultHours: 875, regulatorySummary: "875 hours of instruction required; sequential progressive curriculum."),
+        StateCompliancePreset(code: "WY", name: "Wyoming", defaultDays: 175, defaultHours: nil, regulatorySummary: "175 days of sequential education program in basic academic subjects.")
+    ]
+}
+
 public enum SchoolStateError: LocalizedError, Equatable, Sendable {
     case unsupportedSchema(Int)
     case invalidValue(String)
@@ -217,6 +386,8 @@ public struct SchoolState: Codable, Equatable, Sendable {
     public var academicYears: [AcademicYear]
     public var terms: [AcademicTerm]
     public var activeYearID: UUID?
+    public var parentPIN: String?
+    public var selectedStateCode: String?
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion
@@ -229,6 +400,8 @@ public struct SchoolState: Codable, Equatable, Sendable {
         case academicYears
         case terms
         case activeYearID
+        case parentPIN
+        case selectedStateCode
     }
 
     public init(
@@ -241,7 +414,9 @@ public struct SchoolState: Codable, Equatable, Sendable {
         activities: [LearningActivity] = [],
         academicYears: [AcademicYear] = [],
         terms: [AcademicTerm] = [],
-        activeYearID: UUID? = nil
+        activeYearID: UUID? = nil,
+        parentPIN: String? = nil,
+        selectedStateCode: String? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.students = students
@@ -253,6 +428,8 @@ public struct SchoolState: Codable, Equatable, Sendable {
         self.academicYears = academicYears
         self.terms = terms
         self.activeYearID = activeYearID
+        self.parentPIN = parentPIN
+        self.selectedStateCode = selectedStateCode
     }
 
     public init(from decoder: Decoder) throws {
@@ -267,6 +444,8 @@ public struct SchoolState: Codable, Equatable, Sendable {
         self.academicYears = try container.decodeIfPresent([AcademicYear].self, forKey: .academicYears) ?? []
         self.terms = try container.decodeIfPresent([AcademicTerm].self, forKey: .terms) ?? []
         self.activeYearID = try container.decodeIfPresent(UUID.self, forKey: .activeYearID)
+        self.parentPIN = try container.decodeIfPresent(String.self, forKey: .parentPIN)
+        self.selectedStateCode = try container.decodeIfPresent(String.self, forKey: .selectedStateCode)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -281,10 +460,18 @@ public struct SchoolState: Codable, Equatable, Sendable {
         try container.encode(academicYears, forKey: .academicYears)
         try container.encode(terms, forKey: .terms)
         try container.encodeIfPresent(activeYearID, forKey: .activeYearID)
+        try container.encodeIfPresent(parentPIN, forKey: .parentPIN)
+        try container.encodeIfPresent(selectedStateCode, forKey: .selectedStateCode)
     }
 
     public func validate() throws {
         guard schemaVersion == 1 else { throw SchoolStateError.unsupportedSchema(schemaVersion) }
+
+        if let parentPIN {
+            guard parentPIN.count == 4 && parentPIN.allSatisfy(\.isNumber) else {
+                throw SchoolStateError.invalidValue("Parent PIN must be exactly 4 numeric digits.")
+            }
+        }
 
         try validateUniqueIDs(students.map(\.id), collection: "students")
         try validateUniqueIDs(courses.map(\.id), collection: "courses")
@@ -309,6 +496,16 @@ public struct SchoolState: Codable, Equatable, Sendable {
             guard lessonCounts[course.id, default: 0] <= 365 else {
                 throw SchoolStateError.invalidValue("A course may contain at most 365 lessons.")
             }
+            if let credits = course.creditHours {
+                guard credits >= 0 && credits <= 10 else {
+                    throw SchoolStateError.invalidValue("Course credit hours must be between 0 and 10.")
+                }
+            }
+            if let weight = course.weight {
+                guard weight >= 0 && weight <= 10 else {
+                    throw SchoolStateError.invalidValue("Course weight must be between 0 and 10.")
+                }
+            }
         }
         for lesson in lessons {
             guard courseIDs.contains(lesson.courseID) else {
@@ -328,6 +525,11 @@ public struct SchoolState: Codable, Equatable, Sendable {
             }
             if let scheduledDay = assignment.scheduledDay {
                 try validateDay(scheduledDay)
+            }
+            if let grade = assignment.grade {
+                guard grade >= 0 && grade <= 100 else {
+                    throw SchoolStateError.invalidValue("Assignment grade must be between 0 and 100 percent.")
+                }
             }
             switch assignment.status {
             case .completed:
@@ -898,6 +1100,227 @@ public struct SchoolState: Codable, Equatable, Sendable {
             guard assignment.status == .completed, let completedDay = assignment.completedDay else { return false }
             return (studentID == nil || assignment.studentID == studentID) && year.contains(day: completedDay)
         }
+    }
+
+    public mutating func setParentPIN(_ pin: String?) throws {
+        if let pin {
+            let trimmed = pin.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.count == 4 && trimmed.allSatisfy(\.isNumber) else {
+                throw SchoolStateError.invalidValue("Parent PIN must be exactly 4 numeric digits.")
+            }
+            parentPIN = trimmed
+        } else {
+            parentPIN = nil
+        }
+        try validate()
+    }
+
+    public func verifyParentPIN(_ pin: String) -> Bool {
+        guard let parentPIN else { return true }
+        return parentPIN == pin.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    public mutating func setSelectedStateCode(_ code: String?) throws {
+        if let code {
+            let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+            guard !trimmed.isEmpty else {
+                selectedStateCode = nil
+                try validate()
+                return
+            }
+            guard StateCompliancePreset.preset(for: trimmed) != nil else {
+                throw SchoolStateError.invalidValue("Unknown US state code: \(trimmed)")
+            }
+            selectedStateCode = trimmed
+        } else {
+            selectedStateCode = nil
+        }
+        try validate()
+    }
+
+    public mutating func setAssignmentGrade(id: UUID, grade: Double?, notes: String? = nil) throws {
+        try validate()
+        guard let index = assignments.firstIndex(where: { $0.id == id }) else {
+            throw SchoolStateError.unknownAssignment(id)
+        }
+        if let grade {
+            guard grade >= 0 && grade <= 100 else {
+                throw SchoolStateError.invalidValue("Assignment grade must be between 0 and 100 percent.")
+            }
+        }
+        assignments[index].grade = grade
+        if let notes {
+            let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+            assignments[index].notes = trimmed.isEmpty ? nil : trimmed
+        }
+        try validate()
+    }
+
+    public mutating func updateCourseCredits(id: UUID, creditHours: Double?, weight: Double?) throws {
+        try validate()
+        guard let index = courses.firstIndex(where: { $0.id == id }) else {
+            throw SchoolStateError.unknownCourse(id)
+        }
+        if let creditHours {
+            guard creditHours >= 0 && creditHours <= 10 else {
+                throw SchoolStateError.invalidValue("Course credit hours must be between 0 and 10.")
+            }
+        }
+        if let weight {
+            guard weight >= 0 && weight <= 10 else {
+                throw SchoolStateError.invalidValue("Course weight must be between 0 and 10.")
+            }
+        }
+        courses[index].creditHours = creditHours
+        courses[index].weight = weight
+        try validate()
+    }
+
+    public func courseGrade(for studentID: UUID, courseID: UUID) -> Double? {
+        let courseLessonIDs = Set(lessons.filter { $0.courseID == courseID }.map(\.id))
+        let studentAssignments = assignments.filter { $0.studentID == studentID && courseLessonIDs.contains($0.lessonID) }
+        let graded = studentAssignments.compactMap(\.grade)
+        guard !graded.isEmpty else { return nil }
+        let sum = graded.reduce(0, +)
+        return sum / Double(graded.count)
+    }
+
+    public func courseCreditsEarned(for studentID: UUID, courseID: UUID) -> Double {
+        guard let course = courses.first(where: { $0.id == courseID }),
+              let credits = course.creditHours,
+              credits > 0 else {
+            return 0.0
+        }
+        guard let grade = courseGrade(for: studentID, courseID: courseID) else {
+            return 0.0
+        }
+        return grade >= 65.0 ? credits : 0.0
+    }
+
+    public func cumulativeGPA(for studentID: UUID, weighted: Bool) -> Double? {
+        let studentAssignmentLessonIDs = Set(assignments.filter { $0.studentID == studentID }.map(\.lessonID))
+        let studentCourseIDs = Set(lessons.filter { studentAssignmentLessonIDs.contains($0.id) }.map(\.courseID))
+
+        var totalWeightedPoints: Double = 0
+        var totalCredits: Double = 0
+        var courseCount: Int = 0
+        var totalUnweightedPointsWithoutCredits: Double = 0
+
+        for courseID in studentCourseIDs {
+            guard let grade = courseGrade(for: studentID, courseID: courseID),
+                  let course = courses.first(where: { $0.id == courseID }) else {
+                continue
+            }
+            let basePoint: Double
+            switch grade {
+            case 93...: basePoint = 4.0
+            case 90..<93: basePoint = 3.7
+            case 87..<90: basePoint = 3.3
+            case 83..<87: basePoint = 3.0
+            case 80..<83: basePoint = 2.7
+            case 77..<80: basePoint = 2.3
+            case 73..<77: basePoint = 2.0
+            case 70..<73: basePoint = 1.7
+            case 65..<70: basePoint = 1.0
+            default: basePoint = 0.0
+            }
+
+            let courseWeight = course.weight ?? 4.0
+            let weightAddition = weighted && courseWeight > 4.0 ? (courseWeight - 4.0) : 0.0
+            let finalPoint = min(basePoint + weightAddition, 5.0)
+
+            let credits = course.creditHours ?? 1.0
+            totalWeightedPoints += finalPoint * credits
+            totalCredits += credits
+            courseCount += 1
+            totalUnweightedPointsWithoutCredits += basePoint
+        }
+
+        guard totalCredits > 0 else {
+            return courseCount > 0 ? (totalUnweightedPointsWithoutCredits / Double(courseCount)) : nil
+        }
+        return totalWeightedPoints / totalCredits
+    }
+
+    @discardableResult
+    public mutating func rescheduleOverduePaced(
+        from startDay: String,
+        studentID: UUID? = nil,
+        weekdays: Set<Int> = [2, 3, 4, 5, 6]
+    ) throws -> PacedRescheduleResult {
+        try validate()
+        try validateDay(startDay)
+        guard !weekdays.isEmpty, weekdays.allSatisfy({ (1...7).contains($0) }) else {
+            throw SchoolStateError.invalidValue("Paced rescheduling requires one or more weekdays numbered 1 through 7.")
+        }
+
+        let targetStudents: [Student]
+        if let studentID {
+            guard let s = students.first(where: { $0.id == studentID }) else {
+                throw SchoolStateError.unknownStudent(studentID)
+            }
+            targetStudents = [s]
+        } else {
+            targetStudents = students
+        }
+
+        var totalRescheduled = 0
+        var affectedCourses = Set<UUID>()
+        var maxNewDay: String? = nil
+
+        let lessonMap = Dictionary(uniqueKeysWithValues: lessons.map { ($0.id, $0) })
+
+        for student in targetStudents {
+            let studentAssignments = assignments.filter { $0.studentID == student.id }
+            let overdueAssignments = studentAssignments.filter {
+                guard let scheduledDay = $0.scheduledDay else { return false }
+                return scheduledDay < startDay && $0.status != .completed && $0.status != .skipped
+            }
+
+            if overdueAssignments.isEmpty { continue }
+
+            let coursesWithOverdue = Set(overdueAssignments.compactMap { lessonMap[$0.lessonID]?.courseID })
+
+            for courseID in coursesWithOverdue {
+                affectedCourses.insert(courseID)
+
+                let courseAssignments = studentAssignments.filter { assignment in
+                    guard let lesson = lessonMap[assignment.lessonID], lesson.courseID == courseID else { return false }
+                    guard assignment.status != .completed && assignment.status != .skipped else { return false }
+                    return assignment.scheduledDay != nil
+                }
+
+                let sortedCourseAssignments = courseAssignments.sorted { a1, a2 in
+                    let seq1 = lessonMap[a1.lessonID]?.sequence ?? 0
+                    let seq2 = lessonMap[a2.lessonID]?.sequence ?? 0
+                    return seq1 < seq2
+                }
+
+                let newDays = try scheduledDaysFrom(startDay: startDay, count: sortedCourseAssignments.count, weekdays: weekdays)
+
+                for (index, assignment) in sortedCourseAssignments.enumerated() {
+                    let targetDay = newDays[index]
+                    if let assignmentIndex = assignments.firstIndex(where: { $0.id == assignment.id }) {
+                        if assignments[assignmentIndex].scheduledDay != targetDay {
+                            assignments[assignmentIndex].scheduledDay = targetDay
+                            totalRescheduled += 1
+                        }
+                        if let targetDay {
+                            if maxNewDay == nil || targetDay > maxNewDay! {
+                                maxNewDay = targetDay
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        try validate()
+        return PacedRescheduleResult(
+            rescheduledCount: totalRescheduled,
+            affectedCoursesCount: affectedCourses.count,
+            newCompletionDay: maxNewDay
+        )
     }
 }
 

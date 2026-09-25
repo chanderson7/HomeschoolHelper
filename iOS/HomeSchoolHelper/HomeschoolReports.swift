@@ -15,6 +15,7 @@ public enum ReportType: String, CaseIterable, Identifiable {
     case attendance = "Attendance & Hours Log"
     case curriculum = "Curriculum Progress Report"
     case chronicle = "Comprehensive Annual Chronicle"
+    case transcript = "Official High School Transcript"
 
     public var id: String { rawValue }
 
@@ -26,6 +27,8 @@ public enum ReportType: String, CaseIterable, Identifiable {
             return "book.closed"
         case .chronicle:
             return "doc.richtext"
+        case .transcript:
+            return "graduationcap"
         }
     }
 
@@ -37,6 +40,8 @@ public enum ReportType: String, CaseIterable, Identifiable {
             return "Course progress breakdown, completed lessons, planned syllabus, and mastery pacing."
         case .chronicle:
             return "Comprehensive portfolio chronicle combining attendance, curriculum pacing, extracurricular activities, and certification."
+        case .transcript:
+            return "Official academic high school transcript with Carnegie credit hours, letter grades, cumulative GPA, and parent certification."
         }
     }
 }
@@ -261,6 +266,76 @@ public enum HomeschoolCSVGenerator {
 
         return lines.joined(separator: "\r\n")
     }
+
+    public static func generateTranscriptCSV(
+        state: SchoolState,
+        student: Student?,
+        year: AcademicYear
+    ) -> String {
+        var lines: [String] = []
+
+        lines.append(formatRow(["HOMESCHOOL HELPER - OFFICIAL HIGH SCHOOL ACADEMIC TRANSCRIPT"]))
+        lines.append(formatRow(["Academic Year", year.title]))
+        if let student {
+            lines.append(formatRow(["Student", student.name, "Grade", student.gradeLevel]))
+            let unweighted = state.cumulativeGPA(for: student.id, weighted: false)
+            let weighted = state.cumulativeGPA(for: student.id, weighted: true)
+            let unweightedStr = unweighted != nil ? String(format: "%.2f", unweighted!) : "N/A"
+            let weightedStr = weighted != nil ? String(format: "%.2f", weighted!) : "N/A"
+            lines.append(formatRow(["Cumulative GPA (Unweighted)", unweightedStr]))
+            lines.append(formatRow(["Cumulative GPA (Weighted)", weightedStr]))
+        } else {
+            lines.append(formatRow(["Scope", "All Students (Household)"]))
+        }
+        lines.append("")
+
+        lines.append(formatRow(["Course Title", "Student", "Weight", "Credits Attempted", "Credits Earned", "Average Grade (%)", "Letter Grade"]))
+
+        let targetStudents = student != nil ? [student!] : state.students
+        for st in targetStudents {
+            let studentAssignmentLessonIDs = Set(state.assignments.filter { $0.studentID == st.id }.map(\.lessonID))
+            let studentCourseIDs = Set(state.lessons.filter { studentAssignmentLessonIDs.contains($0.id) }.map(\.courseID))
+            let studentCourses = state.courses.filter { studentCourseIDs.contains($0.id) }
+
+            for course in studentCourses {
+                let creditAttempted = course.creditHours ?? 1.0
+                let creditEarned = state.courseCreditsEarned(for: st.id, courseID: course.id)
+                let grade = state.courseGrade(for: st.id, courseID: course.id)
+                let gradeStr = grade != nil ? String(format: "%.1f%%", grade!) : "In Progress"
+                let letterGrade: String
+                if let grade {
+                    switch grade {
+                    case 97...: letterGrade = "A+"
+                    case 93..<97: letterGrade = "A"
+                    case 90..<93: letterGrade = "A-"
+                    case 87..<90: letterGrade = "B+"
+                    case 83..<87: letterGrade = "B"
+                    case 80..<83: letterGrade = "B-"
+                    case 77..<80: letterGrade = "C+"
+                    case 73..<77: letterGrade = "C"
+                    case 70..<73: letterGrade = "C-"
+                    case 65..<70: letterGrade = "D"
+                    default: letterGrade = "F"
+                    }
+                } else {
+                    letterGrade = "—"
+                }
+                let weightStr = String(format: "%.1f", course.weight ?? 4.0)
+
+                lines.append(formatRow([
+                    course.title,
+                    st.name,
+                    weightStr,
+                    String(format: "%.2f", creditAttempted),
+                    String(format: "%.2f", creditEarned),
+                    gradeStr,
+                    letterGrade
+                ]))
+            }
+        }
+
+        return lines.joined(separator: "\r\n")
+    }
 }
 
 // MARK: - PDF Generation Engine (Letter 8.5" x 11")
@@ -374,6 +449,7 @@ public enum HomeschoolPDFGenerator {
             currentY = drawComplianceSummaryBox(
                 in: context,
                 currentY: currentY,
+                type: type,
                 state: state,
                 student: student,
                 year: year
@@ -435,6 +511,21 @@ public enum HomeschoolPDFGenerator {
                     currentY: currentY,
                     checkNewPage: checkNewPage
                 )
+
+            case .transcript:
+                currentY = drawTranscriptSection(
+                    in: context,
+                    currentY: currentY,
+                    checkNewPage: checkNewPage,
+                    state: state,
+                    student: student,
+                    year: year
+                )
+                currentY = drawTranscriptSignatureBlock(
+                    in: context,
+                    currentY: currentY,
+                    checkNewPage: checkNewPage
+                )
             }
 
             drawRunningFooter()
@@ -444,6 +535,7 @@ public enum HomeschoolPDFGenerator {
     private static func drawComplianceSummaryBox(
         in context: UIGraphicsPDFRendererContext,
         currentY: CGFloat,
+        type: ReportType,
         state: SchoolState,
         student: Student?,
         year: AcademicYear
@@ -457,6 +549,51 @@ public enum HomeschoolPDFGenerator {
         UIColor.systemGray4.setStroke()
         boxPath.lineWidth = 0.5
         boxPath.stroke()
+
+        if type == .transcript {
+            let unweighted = student != nil ? state.cumulativeGPA(for: student!.id, weighted: false) : nil
+            let weighted = student != nil ? state.cumulativeGPA(for: student!.id, weighted: true) : nil
+            let unweightedStr = unweighted != nil ? String(format: "%.2f / 4.00", unweighted!) : "—"
+            let weightedStr = weighted != nil ? String(format: "%.2f", weighted!) : "—"
+
+            let targetStudents = student != nil ? [student!] : state.students
+            var totalCredits: Double = 0
+            for st in targetStudents {
+                let stLessonIDs = Set(state.assignments.filter { $0.studentID == st.id }.map(\.lessonID))
+                let stCourseIDs = Set(state.lessons.filter { stLessonIDs.contains($0.id) }.map(\.courseID))
+                for cID in stCourseIDs {
+                    totalCredits += state.courseCreditsEarned(for: st.id, courseID: cID)
+                }
+            }
+
+            // Column 1: Unweighted GPA
+            let col1Rect = CGRect(x: margin + 12, y: y + 8, width: 160, height: 34)
+            drawMetric(
+                title: "UNWEIGHTED GPA",
+                value: unweightedStr,
+                rect: col1Rect
+            )
+
+            // Column 2: Weighted GPA
+            let col2Rect = CGRect(x: margin + 180, y: y + 8, width: 160, height: 34)
+            drawMetric(
+                title: "WEIGHTED GPA",
+                value: weightedStr,
+                rect: col2Rect
+            )
+
+            // Column 3: Credits Earned
+            let col3Rect = CGRect(x: margin + 350, y: y + 8, width: 170, height: 34)
+            drawMetric(
+                title: "TOTAL CREDITS EARNED",
+                value: String(format: "%.2f Credits", totalCredits),
+                rect: col3Rect,
+                isHighlight: totalCredits > 0
+            )
+
+            y += 60
+            return y
+        }
 
         let entries = state.attendance(for: student?.id, in: year)
         let daysCount = Set(entries.map(\.day)).count
@@ -764,6 +901,190 @@ public enum HomeschoolPDFGenerator {
         UIColor.label.setStroke()
         line2.stroke()
         ("Date Signed" as NSString).draw(at: CGPoint(x: margin + 300, y: y + 20), withAttributes: labelAttr)
+
+        y += 40
+        return y
+    }
+
+    private static func drawTranscriptSection(
+        in context: UIGraphicsPDFRendererContext,
+        currentY: CGFloat,
+        checkNewPage: (CGFloat) -> Void,
+        state: SchoolState,
+        student: Student?,
+        year: AcademicYear
+    ) -> CGFloat {
+        var y = currentY
+        checkNewPage(40)
+
+        let sectionFont = UIFont.systemFont(ofSize: 12, weight: .bold)
+        ("Academic Coursework & Grades" as NSString).draw(
+            at: CGPoint(x: margin, y: y),
+            withAttributes: [.font: sectionFont, .foregroundColor: UIColor.label]
+        )
+        y += 18
+
+        let targetStudents = student != nil ? [student!] : state.students
+        let rowFont = UIFont.systemFont(ofSize: 8, weight: .regular)
+        let rowAttr: [NSAttributedString.Key: Any] = [.font: rowFont, .foregroundColor: UIColor.label]
+        let thFont = UIFont.systemFont(ofSize: 8, weight: .bold)
+        let thAttr: [NSAttributedString.Key: Any] = [.font: thFont, .foregroundColor: UIColor.secondaryLabel]
+
+        for st in targetStudents {
+            checkNewPage(45)
+
+            let header = "Student: \(st.name) • Grade Level: \(st.gradeLevel)"
+            (header as NSString).draw(
+                at: CGPoint(x: margin + 4, y: y),
+                withAttributes: [.font: UIFont.systemFont(ofSize: 10, weight: .semibold), .foregroundColor: UIColor.label]
+            )
+            y += 14
+
+            // Table Header
+            ("Course Title" as NSString).draw(at: CGPoint(x: margin + 6, y: y), withAttributes: thAttr)
+            ("Weight" as NSString).draw(at: CGPoint(x: margin + 200, y: y), withAttributes: thAttr)
+            ("Credits Att." as NSString).draw(at: CGPoint(x: margin + 270, y: y), withAttributes: thAttr)
+            ("Credits Earn." as NSString).draw(at: CGPoint(x: margin + 345, y: y), withAttributes: thAttr)
+            ("Average %" as NSString).draw(at: CGPoint(x: margin + 420, y: y), withAttributes: thAttr)
+            ("Letter" as NSString).draw(at: CGPoint(x: margin + 485, y: y), withAttributes: thAttr)
+            y += 12
+
+            let line = UIBezierPath()
+            line.move(to: CGPoint(x: margin, y: y))
+            line.addLine(to: CGPoint(x: pageWidth - margin, y: y))
+            line.lineWidth = 0.5
+            UIColor.separator.setStroke()
+            line.stroke()
+            y += 4
+
+            let studentAssignmentLessonIDs = Set(state.assignments.filter { $0.studentID == st.id }.map(\.lessonID))
+            let studentCourseIDs = Set(state.lessons.filter { studentAssignmentLessonIDs.contains($0.id) }.map(\.courseID))
+            let courses = state.courses.filter { studentCourseIDs.contains($0.id) }
+
+            if courses.isEmpty {
+                ("No courses enrolled for this student." as NSString).draw(
+                    at: CGPoint(x: margin + 6, y: y + 2),
+                    withAttributes: [.font: rowFont, .foregroundColor: UIColor.secondaryLabel]
+                )
+                y += 18
+            } else {
+                var isEven = false
+                var totalAttempted: Double = 0
+                var totalEarned: Double = 0
+
+                for course in courses {
+                    checkNewPage(16)
+                    let creditAttempted = course.creditHours ?? 1.0
+                    let creditEarned = state.courseCreditsEarned(for: st.id, courseID: course.id)
+                    totalAttempted += creditAttempted
+                    totalEarned += creditEarned
+
+                    let grade = state.courseGrade(for: st.id, courseID: course.id)
+                    let gradeStr = grade != nil ? String(format: "%.1f%%", grade!) : "In Progress"
+                    let letterGrade: String
+                    if let grade {
+                        switch grade {
+                        case 97...: letterGrade = "A+"
+                        case 93..<97: letterGrade = "A"
+                        case 90..<93: letterGrade = "A-"
+                        case 87..<90: letterGrade = "B+"
+                        case 83..<87: letterGrade = "B"
+                        case 80..<83: letterGrade = "B-"
+                        case 77..<80: letterGrade = "C+"
+                        case 73..<77: letterGrade = "C"
+                        case 70..<73: letterGrade = "C-"
+                        case 65..<70: letterGrade = "D"
+                        default: letterGrade = "F"
+                        }
+                    } else {
+                        letterGrade = "—"
+                    }
+                    let weightStr = String(format: "%.1f", course.weight ?? 4.0)
+
+                    if isEven {
+                        let bgRect = CGRect(x: margin, y: y, width: contentWidth, height: 15)
+                        UIColor.systemGray6.setFill()
+                        UIRectFill(bgRect)
+                    }
+
+                    (course.title as NSString).draw(at: CGPoint(x: margin + 6, y: y + 2), withAttributes: rowAttr)
+                    (weightStr as NSString).draw(at: CGPoint(x: margin + 200, y: y + 2), withAttributes: rowAttr)
+                    (String(format: "%.2f", creditAttempted) as NSString).draw(at: CGPoint(x: margin + 270, y: y + 2), withAttributes: rowAttr)
+                    (String(format: "%.2f", creditEarned) as NSString).draw(at: CGPoint(x: margin + 345, y: y + 2), withAttributes: rowAttr)
+                    (gradeStr as NSString).draw(at: CGPoint(x: margin + 420, y: y + 2), withAttributes: rowAttr)
+                    (letterGrade as NSString).draw(at: CGPoint(x: margin + 485, y: y + 2), withAttributes: rowAttr)
+
+                    y += 15
+                    isEven.toggle()
+                }
+
+                // Summary totals line for this student
+                checkNewPage(24)
+                y += 4
+                let sepLine = UIBezierPath()
+                sepLine.move(to: CGPoint(x: margin, y: y))
+                sepLine.addLine(to: CGPoint(x: pageWidth - margin, y: y))
+                sepLine.lineWidth = 0.5
+                UIColor.separator.setStroke()
+                sepLine.stroke()
+                y += 4
+
+                let unweighted = state.cumulativeGPA(for: st.id, weighted: false)
+                let weighted = state.cumulativeGPA(for: st.id, weighted: true)
+                let unweightedStr = unweighted != nil ? String(format: "%.2f", unweighted!) : "—"
+                let weightedStr = weighted != nil ? String(format: "%.2f", weighted!) : "—"
+
+                let boldFont = UIFont.systemFont(ofSize: 8, weight: .bold)
+                let boldAttr: [NSAttributedString.Key: Any] = [.font: boldFont, .foregroundColor: UIColor.label]
+
+                ("TOTALS / GPA" as NSString).draw(at: CGPoint(x: margin + 6, y: y), withAttributes: boldAttr)
+                (String(format: "%.2f", totalAttempted) as NSString).draw(at: CGPoint(x: margin + 270, y: y), withAttributes: boldAttr)
+                (String(format: "%.2f", totalEarned) as NSString).draw(at: CGPoint(x: margin + 345, y: y), withAttributes: boldAttr)
+                ("GPA: \(unweightedStr) (UW) / \(weightedStr) (W)" as NSString).draw(at: CGPoint(x: margin + 420, y: y), withAttributes: boldAttr)
+                y += 18
+            }
+            y += 10
+        }
+
+        return y
+    }
+
+    private static func drawTranscriptSignatureBlock(
+        in context: UIGraphicsPDFRendererContext,
+        currentY: CGFloat,
+        checkNewPage: (CGFloat) -> Void
+    ) -> CGFloat {
+        var y = currentY
+        checkNewPage(90)
+
+        y += 10
+        let attestationFont = UIFont.italicSystemFont(ofSize: 8)
+        let attestationText = "Official Transcript Attestation: I, the undersigned primary educator and administrator of this home education program, hereby certify and affirm that this transcript is an accurate, official, and complete academic record of the coursework, grades, and credits earned by the student in compliance with state homeschooling provisions."
+        let attestationRect = CGRect(x: margin, y: y, width: contentWidth, height: 30)
+        (attestationText as NSString).draw(in: attestationRect, withAttributes: [.font: attestationFont, .foregroundColor: UIColor.secondaryLabel])
+        y += 36
+
+        // Signature Line
+        let labelFont = UIFont.systemFont(ofSize: 8, weight: .medium)
+        let labelAttr: [NSAttributedString.Key: Any] = [.font: labelFont, .foregroundColor: UIColor.label]
+
+        // Administrator Signature Line
+        let line1 = UIBezierPath()
+        line1.move(to: CGPoint(x: margin, y: y + 16))
+        line1.addLine(to: CGPoint(x: margin + 260, y: y + 16))
+        line1.lineWidth = 0.5
+        UIColor.label.setStroke()
+        line1.stroke()
+        ("Home School Administrator / Parent Signature" as NSString).draw(at: CGPoint(x: margin, y: y + 20), withAttributes: labelAttr)
+
+        // Date Line
+        let line2 = UIBezierPath()
+        line2.move(to: CGPoint(x: pageWidth - margin - 150, y: y + 16))
+        line2.addLine(to: CGPoint(x: pageWidth - margin, y: y + 16))
+        line2.lineWidth = 0.5
+        UIColor.label.setStroke()
+        line2.stroke()
+        ("Date" as NSString).draw(at: CGPoint(x: pageWidth - margin - 150, y: y + 20), withAttributes: labelAttr)
 
         y += 40
         return y

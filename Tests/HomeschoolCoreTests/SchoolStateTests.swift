@@ -665,5 +665,175 @@ final class SchoolStateTests: XCTestCase {
         XCTAssertFalse(resolved.title.isEmpty)
         XCTAssertEqual(resolved.targetDays, 180)
     }
+
+    func testPacedReschedulingSpreadsAcrossEligibleWeekdays() throws {
+        var state = SchoolState()
+        let alice = try state.addStudent(name: "Alice", gradeLevel: "5")
+        let courseID = try state.addCourse(
+            title: "Math",
+            studentIDs: [alice],
+            lessonTitles: ["L1", "L2", "L3", "L4"],
+            startDay: "2026-09-14", // Mon
+            weekdays: [2, 3, 4, 5, 6]
+        )
+
+        let aliceAssignments = state.assignments.filter { $0.studentID == alice }
+        XCTAssertEqual(aliceAssignments.count, 4)
+
+        // Today is Friday 2026-09-25.
+        // L1 scheduled 2026-09-14 (overdue)
+        // L2 scheduled 2026-09-15 (overdue)
+        // L3 scheduled 2026-09-16 (overdue)
+        // L4 scheduled 2026-09-17 (overdue)
+        let result = try state.rescheduleOverduePaced(
+            from: "2026-09-25",
+            studentID: alice,
+            weekdays: [2, 3, 4, 5, 6]
+        )
+
+        XCTAssertEqual(result.rescheduledCount, 4)
+        XCTAssertEqual(result.affectedCoursesCount, 1)
+
+        let updatedAssignments = state.assignments.filter { $0.studentID == alice }.sorted { a1, a2 in
+            let seq1 = state.lessons.first(where: { $0.id == a1.lessonID })?.sequence ?? 0
+            let seq2 = state.lessons.first(where: { $0.id == a2.lessonID })?.sequence ?? 0
+            return seq1 < seq2
+        }
+
+        // L1 on Friday 2026-09-25
+        XCTAssertEqual(updatedAssignments[0].scheduledDay, "2026-09-25")
+        // L2 on Monday 2026-09-28
+        XCTAssertEqual(updatedAssignments[1].scheduledDay, "2026-09-28")
+        // L3 on Tuesday 2026-09-29
+        XCTAssertEqual(updatedAssignments[2].scheduledDay, "2026-09-29")
+        // L4 on Wednesday 2026-09-30
+        XCTAssertEqual(updatedAssignments[3].scheduledDay, "2026-09-30")
+        XCTAssertEqual(result.newCompletionDay, "2026-09-30")
+        XCTAssertNoThrow(try state.validate())
+    }
+
+    func testStateCompliancePresetsCoverageAll50States() throws {
+        XCTAssertGreaterThanOrEqual(StateCompliancePreset.allStates.count, 51)
+
+        let ca = try XCTUnwrap(StateCompliancePreset.preset(for: "CA"))
+        XCTAssertEqual(ca.name, "California")
+        XCTAssertEqual(ca.defaultDays, 175)
+
+        let mo = try XCTUnwrap(StateCompliancePreset.preset(for: "MO"))
+        XCTAssertEqual(mo.name, "Missouri")
+        XCTAssertEqual(mo.defaultHours, 1000)
+
+        var state = SchoolState()
+        try state.setSelectedStateCode("fl")
+        XCTAssertEqual(state.selectedStateCode, "FL")
+
+        try state.setSelectedStateCode(nil)
+        XCTAssertNil(state.selectedStateCode)
+
+        XCTAssertThrowsError(try state.setSelectedStateCode("ZZ_INVALID"))
+    }
+
+    func testGradeAndGPACalculationsWithHonorsWeighting() throws {
+        var state = SchoolState()
+        let studentID = try state.addStudent(name: "Student A", gradeLevel: "10")
+
+        let mathID = try state.addCourse(title: "Algebra II", studentIDs: [studentID], lessonTitles: ["Quiz 1", "Quiz 2"], startDay: nil)
+        try state.updateCourseCredits(id: mathID, creditHours: 1.0, weight: 4.0)
+
+        let chemID = try state.addCourse(title: "Honors Chemistry", studentIDs: [studentID], lessonTitles: ["Lab 1", "Lab 2"], startDay: nil)
+        try state.updateCourseCredits(id: chemID, creditHours: 1.0, weight: 4.5)
+
+        // Math: Grade 95 and 95 -> Average 95.0 (A -> 4.0)
+        let mathAssignments = state.assignments.filter { assignment in
+            state.lessons.contains { $0.id == assignment.lessonID && $0.courseID == mathID }
+        }
+        try state.setAssignmentGrade(id: mathAssignments[0].id, grade: 95.0, notes: "Excellent work")
+        try state.setAssignmentGrade(id: mathAssignments[1].id, grade: 95.0)
+
+        // Chem: Grade 85 and 85 -> Average 85.0 (B -> 3.0 base, 3.5 weighted)
+        let chemAssignments = state.assignments.filter { assignment in
+            state.lessons.contains { $0.id == assignment.lessonID && $0.courseID == chemID }
+        }
+        try state.setAssignmentGrade(id: chemAssignments[0].id, grade: 85.0)
+        try state.setAssignmentGrade(id: chemAssignments[1].id, grade: 85.0)
+
+        XCTAssertEqual(state.courseGrade(for: studentID, courseID: mathID), 95.0)
+        XCTAssertEqual(state.courseGrade(for: studentID, courseID: chemID), 85.0)
+        XCTAssertEqual(state.courseCreditsEarned(for: studentID, courseID: mathID), 1.0)
+        XCTAssertEqual(state.courseCreditsEarned(for: studentID, courseID: chemID), 1.0)
+
+        // Unweighted GPA: (4.0 * 1.0 + 3.0 * 1.0) / 2.0 = 3.5
+        let unweighted = try XCTUnwrap(state.cumulativeGPA(for: studentID, weighted: false))
+        XCTAssertEqual(unweighted, 3.5, accuracy: 0.001)
+
+        // Weighted GPA: (4.0 * 1.0 + 3.5 * 1.0) / 2.0 = 3.75
+        let weighted = try XCTUnwrap(state.cumulativeGPA(for: studentID, weighted: true))
+        XCTAssertEqual(weighted, 3.75, accuracy: 0.001)
+
+        // Assignment letter grade & grade points
+        let updatedMath0 = try XCTUnwrap(state.assignments.first(where: { $0.id == mathAssignments[0].id }))
+        let updatedChem0 = try XCTUnwrap(state.assignments.first(where: { $0.id == chemAssignments[0].id }))
+        XCTAssertEqual(updatedMath0.letterGrade, "A")
+        XCTAssertEqual(updatedMath0.gradePoint, 4.0)
+        XCTAssertEqual(updatedMath0.notes, "Excellent work")
+        XCTAssertEqual(updatedChem0.letterGrade, "B")
+        XCTAssertEqual(updatedChem0.gradePoint, 3.0)
+    }
+
+    func testParentPINVerificationAndValidation() throws {
+        var state = SchoolState()
+        // Default: no PIN set, verify returns true
+        XCTAssertTrue(state.verifyParentPIN("1234"))
+
+        try state.setParentPIN("9876")
+        XCTAssertEqual(state.parentPIN, "9876")
+        XCTAssertTrue(state.verifyParentPIN("9876"))
+        XCTAssertFalse(state.verifyParentPIN("1234"))
+        XCTAssertFalse(state.verifyParentPIN(""))
+
+        // Invalid PINs
+        XCTAssertThrowsError(try state.setParentPIN("123"))
+        XCTAssertThrowsError(try state.setParentPIN("12345"))
+        XCTAssertThrowsError(try state.setParentPIN("abcd"))
+
+        // Clear PIN
+        try state.setParentPIN(nil)
+        XCTAssertNil(state.parentPIN)
+        XCTAssertTrue(state.verifyParentPIN("any"))
+    }
+
+    func testBackwardCompatibilityWithAllNewFields() throws {
+        let legacyJSON = """
+        {
+          "schemaVersion": 1,
+          "students": [
+            { "id": "22222222-2222-2222-2222-222222222222", "name": "Bob", "gradeLevel": "8" }
+          ],
+          "courses": [
+            { "id": "33333333-3333-3333-3333-333333333333", "title": "Science" }
+          ],
+          "lessons": [
+            { "id": "44444444-4444-4444-4444-444444444444", "courseID": "33333333-3333-3333-3333-333333333333", "title": "Intro", "sequence": 1 }
+          ],
+          "assignments": [
+            { "id": "55555555-5555-5555-5555-555555555555", "studentID": "22222222-2222-2222-2222-222222222222", "lessonID": "44444444-4444-4444-4444-444444444444", "status": "planned" }
+          ],
+          "attendance": [],
+          "activities": []
+        }
+        """
+        let data = legacyJSON.data(using: .utf8)!
+        let state = try JSONDecoder().decode(SchoolState.self, from: data)
+
+        XCTAssertEqual(state.students.count, 1)
+        XCTAssertEqual(state.courses.count, 1)
+        XCTAssertNil(state.courses[0].creditHours)
+        XCTAssertNil(state.courses[0].weight)
+        XCTAssertNil(state.assignments[0].grade)
+        XCTAssertNil(state.assignments[0].notes)
+        XCTAssertNil(state.parentPIN)
+        XCTAssertNil(state.selectedStateCode)
+        XCTAssertNoThrow(try state.validate())
+    }
 }
 

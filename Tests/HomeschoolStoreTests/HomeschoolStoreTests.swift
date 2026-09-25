@@ -332,6 +332,62 @@ final class HomeschoolStoreTests: XCTestCase {
             XCTAssertTrue(store.state.academicYears.isEmpty)
         }
     }
+
+    func testPacedRescheduleStudentModeAndGradingInStore() async {
+        await MainActor.run {
+            let repository = InMemorySchoolRepository(state: SchoolState())
+            let store = HomeschoolStore(repository: repository)
+
+            // Setup student and course
+            _ = store.addStudent(name: "Charlie", gradeLevel: "9")
+            let student = store.state.students[0]
+            _ = store.addCourse(
+                title: "Literature",
+                studentIDs: [student.id],
+                lessonTitles: ["Ch 1", "Ch 2", "Ch 3"],
+                startDay: "2026-09-01",
+                weekdays: [2, 3, 4, 5, 6]
+            )
+            let course = store.state.courses[0]
+
+            // Paced Reschedule
+            let result = store.rescheduleOverduePaced(from: "2026-09-25", studentID: student.id)
+            XCTAssertNotNil(result)
+            XCTAssertEqual(result?.rescheduledCount, 3)
+
+            // PIN & Student Mode
+            XCTAssertFalse(store.hasParentPIN)
+            XCTAssertTrue(store.setParentPIN("4321"))
+            XCTAssertTrue(store.hasParentPIN)
+            XCTAssertTrue(store.verifyParentPIN("4321"))
+            XCTAssertFalse(store.verifyParentPIN("0000"))
+
+            store.enterStudentMode(for: student.id)
+            XCTAssertTrue(store.isStudentModeActive)
+            XCTAssertEqual(store.activeStudentModeStudentID, student.id)
+
+            // Exit with wrong PIN fails
+            XCTAssertFalse(store.exitStudentMode(pin: "9999"))
+            XCTAssertTrue(store.isStudentModeActive)
+
+            // Exit with correct PIN succeeds
+            XCTAssertTrue(store.exitStudentMode(pin: "4321"))
+            XCTAssertFalse(store.isStudentModeActive)
+
+            // State Compliance
+            XCTAssertTrue(store.setSelectedStateCode("CA"))
+            XCTAssertEqual(store.selectedStatePreset?.code, "CA")
+            XCTAssertEqual(store.selectedStatePreset?.defaultDays, 175)
+
+            // Grading and GPA
+            XCTAssertTrue(store.updateCourseCredits(id: course.id, creditHours: 1.0, weight: 4.0))
+            let assignmentID = store.state.assignments[0].id
+            XCTAssertTrue(store.setAssignmentGrade(id: assignmentID, grade: 92.0, notes: "Good analysis"))
+            XCTAssertEqual(store.courseGrade(for: student.id, courseID: course.id), 92.0)
+            XCTAssertEqual(store.courseCreditsEarned(for: student.id, courseID: course.id), 1.0)
+            XCTAssertEqual(store.cumulativeGPA(for: student.id, weighted: false), 3.7)
+        }
+    }
 }
 
 private enum FakeRepositoryError: LocalizedError, Sendable {
