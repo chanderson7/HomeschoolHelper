@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		A10000000000000000000001 /* HomeschoolCore in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000002 /* HomeschoolCore */; };
+C10000000000000000000001 = {isa = PBXBuildFile; productRef = C10000000000000000000002; };
+C10000000000000000000003 = {isa = PBXBuildFile; productRef = C10000000000000000000004; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -44,6 +46,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000001 /* HomeschoolCore in Frameworks */,
+ C10000000000000000000001, C10000000000000000000003,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -96,6 +99,7 @@
 			name = HomeSchoolHelper;
 			packageProductDependencies = (
 				A10000000000000000000002 /* HomeschoolCore */,
+ C10000000000000000000002, C10000000000000000000004,
 			);
 			productName = HomeSchoolHelper;
 			productReference = A10000000000000000000003 /* HomeSchoolHelper.app */;
@@ -148,6 +152,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				A1000000000000000000000E /* XCLocalSwiftPackageReference "." */,
+ C10000000000000000000005,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A10000000000000000000007 /* Products */;
@@ -236,7 +241,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 26BWL2RFDX;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = HomeSchoolHelper;
+				INFOPLIST_FILE = Config/Info.plist;
+ INFOPLIST_KEY_CFBundleDisplayName = HomeSchoolHelper;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -258,7 +264,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 26BWL2RFDX;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = HomeSchoolHelper;
+				INFOPLIST_FILE = Config/Info.plist;
+ INFOPLIST_KEY_CFBundleDisplayName = HomeSchoolHelper;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -342,7 +349,10 @@
 			package = A1000000000000000000000E /* XCLocalSwiftPackageReference "." */;
 			productName = HomeschoolCore;
 		};
+C10000000000000000000002 = {isa = XCSwiftPackageProductDependency; package = A1000000000000000000000E; productName = HomeschoolAuth; };
+C10000000000000000000004 = {isa = XCSwiftPackageProductDependency; package = C10000000000000000000005; productName = Supabase; };
 /* End XCSwiftPackageProductDependency section */
+C10000000000000000000005 = {isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/supabase/supabase-swift.git"; requirement = {kind = exactVersion; version = 2.55.2; }; };
 	};
 	rootObject = A1000000000000000000000C /* Project object */;
 }

@@ -3,6 +3,29 @@ import XCTest
 @testable import HomeschoolPresentation
 
 final class HomeschoolStoreTests: XCTestCase {
+    func testAccountPathsAreDistinctFromEachOtherAndLegacyRecords() async {
+        await MainActor.run {
+            let first = HomeschoolStore.accountFileURL(userID: UUID())
+            let second = HomeschoolStore.accountFileURL(userID: UUID())
+            XCTAssertNotEqual(first, second)
+            XCTAssertNotEqual(first, HomeschoolStore.defaultFileURL())
+            XCTAssertTrue(first.path.contains("HomeSchoolHelper/accounts/"))
+        }
+    }
+
+    func testInvalidRestorePreservesOriginalRecords() async {
+        let original = SchoolState(students: [Student(name: "Ada", gradeLevel: "4")])
+        let repository = InMemorySchoolRepository(state: original)
+        await MainActor.run {
+            let store = HomeschoolStore(repository: repository)
+            var invalid = SchoolState()
+            invalid.students = [Student(name: "", gradeLevel: "4")]
+            XCTAssertFalse(store.restore(invalid))
+            XCTAssertEqual(store.state, original)
+            XCTAssertTrue(repository.savedStates.isEmpty)
+        }
+    }
+
     func testFreshLoadPublishesRepositoryState() async {
         let student = Student(name: "Ada", gradeLevel: "4")
         let repository = InMemorySchoolRepository(state: SchoolState(students: [student]))

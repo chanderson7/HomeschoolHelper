@@ -1,0 +1,148 @@
+import SwiftUI
+import HomeschoolAuth
+import HomeschoolCore
+import Supabase
+
+struct AccountView: View {
+    @EnvironmentObject private var auth: AuthStore
+    @EnvironmentObject private var store: HomeschoolStore
+    @Environment(\.dismiss) private var dismiss
+    let identity: AuthIdentity
+    @State private var backups: [BackupSummary] = []
+    @State private var busy = false
+    @State private var message: String?
+    @State private var pendingRestore: BackupSummary?
+    @State private var confirmImport = false
+    @State private var confirmUpload = false
+
+    private var isCurrentAccount: Bool { auth.phase == .signedIn(identity) }
+    private var legacyAvailable: Bool { FileManager.default.fileExists(atPath: HomeschoolStore.defaultFileURL().path) }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Your account") {
+                    LabeledContent("Email", value: identity.email)
+                    Button("Sign out", role: .destructive) {
+                        Task { await auth.signOut() }
+                    }.accessibilityIdentifier("accountSignOut")
+                }
+                Section("Private cloud backups") {
+                    Text("Save a copy of this account’s records to Supabase. Backups are private to your account. Changes are not synchronized automatically between devices.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                    Button("Back up current records") { confirmUpload = true }
+                        .disabled(busy || store.loadError != nil)
+                        .accessibilityIdentifier("uploadBackup")
+                    Button("Refresh backups") { Task { await loadBackups() } }.disabled(busy)
+                    if busy { ProgressView("Working…") }
+                    if let message { Text(message).font(.footnote).accessibilityIdentifier("backupMessage") }
+                    ForEach(backups) { backup in
+                        Button {
+                            pendingRestore = backup
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Restore backup").font(.headline)
+                                Text(backup.created_at).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }.disabled(busy)
+                    }
+                    if backups.isEmpty && !busy { Text("No cloud backups yet.").foregroundStyle(.secondary) }
+                }
+                if legacyAvailable {
+                    Section("Existing device records") {
+                        Text("Records created before accounts were added are kept separately. Import them only if they belong to this account. The original file will be preserved.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                        Button("Import records from this device") { confirmImport = true }
+                            .disabled(busy || store.state != SchoolState())
+                        Text("Import is available only while this account has no records.").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .navigationTitle("Account & backups")
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .task { await loadBackups() }
+            .confirmationDialog("Back up this account’s records?", isPresented: $confirmUpload, titleVisibility: .visible) {
+                Button("Upload private backup") { Task { await uploadBackup() } }
+            } message: { Text("Learners, lessons, attendance, and activities will be saved to your Supabase account.") }
+            .confirmationDialog("Replace this account’s local records?", isPresented: Binding(
+                get: { pendingRestore != nil }, set: { if !$0 { pendingRestore = nil } }
+            ), titleVisibility: .visible) {
+                if let backup = pendingRestore {
+                    Button("Restore backup", role: .destructive) { Task { await restoreBackup(backup) } }
+                }
+            } message: { Text("Current local changes will be replaced with the selected backup. Back up your current records first if you want to keep them.") }
+            .confirmationDialog("Import existing records into this account?", isPresented: $confirmImport, titleVisibility: .visible) {
+                Button("Import into \(identity.email)") { importLegacy() }
+            } message: { Text("Only import records belonging to this family. Import does not upload them.") }
+        }
+    }
+
+    private func verifyIdentity() async throws {
+        guard isCurrentAccount else { throw BackupError.accountChanged }
+        let user = try await auth.client.auth.user()
+        guard user.id == identity.id, isCurrentAccount else { throw BackupError.accountChanged }
+    }
+
+    private func loadBackups() async {
+        guard !busy else { return }
+        busy = true
+        defer { busy = false }
+        do {
+            try await verifyIdentity()
+            let fetched: [BackupSummary] = try await auth.client.from("school_backups")
+                .select("id,created_at").eq("user_id", value: identity.id)
+                .order("created_at", ascending: false).limit(20).execute().value
+            guard isCurrentAccount else { return }
+            backups = fetched
+            message = nil
+        } catch { message = "Couldn’t load backups. Check your connection and try again." }
+    }
+
+    private func uploadBackup() async {
+        guard !busy, isCurrentAccount else { return }
+        busy = true
+        do {
+            let snapshot = store.state
+            try snapshot.validate()
+            try await verifyIdentity()
+            try await auth.client.from("school_backups")
+                .insert(BackupUpload(user_id: identity.id, state: snapshot)).execute()
+            guard isCurrentAccount else { busy = false; return }
+            busy = false
+            await loadBackups()
+            message = "Private backup saved."
+        } catch { busy = false; message = "Couldn’t save the backup. Your local records are unchanged." }
+    }
+
+    private func restoreBackup(_ backup: BackupSummary) async {
+        guard !busy else { return }
+        busy = true
+        defer { busy = false; pendingRestore = nil }
+        do {
+            try await verifyIdentity()
+            let stored: BackupContents = try await auth.client.from("school_backups")
+                .select("state").eq("user_id", value: identity.id).eq("id", value: backup.id)
+                .single().execute().value
+            try stored.state.validate()
+            guard isCurrentAccount else { return }
+            if store.restore(stored.state) { message = "Records restored on this device." }
+            else { message = "Couldn’t save restored records. Your previous local records are unchanged." }
+        } catch { message = "Couldn’t restore this backup. Your local records are unchanged." }
+    }
+
+    private func importLegacy() {
+        guard isCurrentAccount, store.state == SchoolState() else { return }
+        do {
+            let snapshot = try JSONSchoolRepository(fileURL: HomeschoolStore.defaultFileURL()).load()
+            message = store.restore(snapshot) ? "Device records imported. The original file is unchanged." : "Couldn’t import records."
+        } catch { message = "The existing records couldn’t be read. The original file is unchanged." }
+    }
+}
+
+private struct BackupSummary: Decodable, Identifiable {
+    let id: UUID
+    let created_at: String
+}
+private struct BackupUpload: Encodable { let user_id: UUID; let state: SchoolState }
+private struct BackupContents: Decodable { let state: SchoolState }
+private enum BackupError: Error { case accountChanged }

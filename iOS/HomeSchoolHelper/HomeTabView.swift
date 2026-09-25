@@ -1465,6 +1465,8 @@ private struct ActivityLogView: View {
 }
 
 struct FamilyView: View {
+    @Environment(\.signedInIdentity) private var identity
+    @State private var showAccount = false
     @EnvironmentObject private var store: HomeschoolStore
     @State private var showAddStudent = false
 
@@ -1532,15 +1534,22 @@ struct FamilyView: View {
                 }
 
                 Section("Your data & privacy") {
+                    if identity != nil {
+                        Button("Account & cloud backups") { showAccount = true }
+                            .accessibilityIdentifier("openAccount")
+                    }
                     Label("Saved on this device", systemImage: "lock.shield.fill")
                         .font(.headline)
                         .foregroundStyle(Sage.accent)
-                    Text("This milestone keeps school records locally. It does not create accounts, billing, grades, transcripts, or cloud sync.")
+                    Text("Records are saved on this device for your signed-in account. You can create private cloud backups from Account & cloud backups.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
             }
             .navigationTitle("Family")
+            .sheet(isPresented: $showAccount) {
+                if let identity { AccountView(identity: identity) }
+            }
             .toolbar { SaveStatusToolbar() }
             .sheet(isPresented: $showAddStudent) { AddStudentView() }
         }

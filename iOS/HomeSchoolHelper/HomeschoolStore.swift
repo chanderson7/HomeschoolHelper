@@ -138,6 +138,22 @@ final class HomeschoolStore: ObservableObject {
             .appendingPathComponent("HomeSchoolHelper", isDirectory: true)
             .appendingPathComponent("school-state.json")
     }
+
+    static func accountFileURL(userID: UUID) -> URL {
+        URL.applicationSupportDirectory
+            .appendingPathComponent("HomeSchoolHelper/accounts", isDirectory: true)
+            .appendingPathComponent(userID.uuidString, isDirectory: true)
+            .appendingPathComponent("school-state.json")
+    }
+
+    /// Replacing records is only invoked after an explicit user confirmation.
+    @discardableResult
+    func restore(_ snapshot: SchoolState) -> Bool {
+        update("restore records") { copy in
+            try snapshot.validate()
+            copy = snapshot
+        }
+    }
 }
 
 struct AppMessage: Identifiable {

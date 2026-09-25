@@ -9,12 +9,34 @@ final class HomeSchoolHelperUITests: XCTestCase {
         app = XCUIApplication()
         app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launchEnvironment["HSH_UI_TEST_ID"] = UUID().uuidString
+        app.launchEnvironment["HSH_UI_TEST_AUTH_MODE"] = "authenticated"
         app.launch()
     }
 
     override func tearDownWithError() throws {
         app.terminate()
         app = nil
+    }
+
+    func testSignedOutUserCannotAccessSchoolAndSignupRequiresMatchingPassword() {
+        app.terminate()
+        app.launchEnvironment["HSH_UI_TEST_ID"] = UUID().uuidString
+        app.launchEnvironment.removeValue(forKey: "HSH_UI_TEST_AUTH_MODE")
+        app.launch()
+
+        XCTAssertTrue(app.textFields["loginEmail"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.tabBars.buttons["Today"].exists)
+        XCTAssertFalse(app.tabBars.buttons["Family"].exists)
+        XCTAssertFalse(app.buttons["loginSubmit"].isEnabled)
+        tap("loginToggleMode", in: app.buttons)
+        enter("parent@example.com", into: app.textFields["loginEmail"])
+        enter("long-password", into: app.secureTextFields["loginPassword"])
+        enter("mismatch", into: app.secureTextFields["loginPasswordConfirmation"])
+        XCTAssertFalse(app.buttons["loginSubmit"].isEnabled)
+        enter("long-password", into: app.secureTextFields["loginPasswordConfirmation"])
+        XCTAssertTrue(app.buttons["loginSubmit"].isEnabled)
+        XCTAssertFalse(app.tabBars.buttons["Records"].exists)
+        attachScreenshot(named: "signup-validation")
     }
 
     func testIndependentFlexibleProgressRecordsAndPersistence() throws {
@@ -69,6 +91,7 @@ final class HomeSchoolHelperUITests: XCTestCase {
     func testLargeTextDarkModeAccessibilitySmoke() throws {
         app.terminate()
         app.launchEnvironment["HSH_UI_TEST_ID"] = UUID().uuidString
+        app.launchEnvironment["HSH_UI_TEST_AUTH_MODE"] = "authenticated"
         app.launchEnvironment["HSH_UI_TEST_DARK_MODE"] = "1"
         app.launchEnvironment["HSH_UI_TEST_LARGE_TEXT"] = "1"
         app.launch()

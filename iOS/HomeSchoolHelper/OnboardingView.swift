@@ -2,6 +2,8 @@ import SwiftUI
 import HomeschoolCore
 
 struct OnboardingView: View {
+    @Environment(\.signedInIdentity) private var identity
+    @State private var showAccount = false
     @EnvironmentObject private var store: HomeschoolStore
     var onExplore: () -> Void
 
@@ -34,6 +36,11 @@ struct OnboardingView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
+                    if let identity {
+                        Button("Account & backups") { showAccount = true }
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .sheet(isPresented: $showAccount) { AccountView(identity: identity) }
+                    }
                     // Header
                     VStack(spacing: 12) {
                         ZStack {
