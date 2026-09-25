@@ -806,6 +806,7 @@ struct AssignmentStatusSheet: View {
     @State private var completionDate: Date
     @State private var gradeString: String
     @State private var notes: String
+    @State private var categoryID: UUID?
     @State private var showingAddPortfolioSampleSheet = false
 
     init(assignment: Assignment) {
@@ -814,6 +815,7 @@ struct AssignmentStatusSheet: View {
         _completionDate = State(initialValue: SchoolDate.date(assignment.completedDay) ?? Date())
         _gradeString = State(initialValue: assignment.grade.map { String(format: "%g", $0) } ?? "")
         _notes = State(initialValue: assignment.notes ?? "")
+        _categoryID = State(initialValue: assignment.categoryID)
     }
 
     private var previewLetterGrade: String? {
@@ -873,6 +875,18 @@ struct AssignmentStatusSheet: View {
                                 .foregroundStyle(Sage.accent)
                         }
                     }
+
+                    let courseCategories = store.lesson(for: assignment.lessonID).flatMap { store.course(for: $0) }.map { store.gradeCategories(for: $0.id) } ?? []
+                    if !courseCategories.isEmpty {
+                        Picker("Category", selection: $categoryID) {
+                            Text("None").tag(nil as UUID?)
+                            ForEach(courseCategories) { cat in
+                                Text(cat.name).tag(cat.id as UUID?)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+
                     TextField("Teacher notes or feedback", text: $notes, axis: .vertical)
                         .lineLimit(2...4)
                         .accessibilityIdentifier("assignmentNotesField")
@@ -910,6 +924,7 @@ struct AssignmentStatusSheet: View {
                                 store.presentedError = AppMessage(title: "Invalid Grade", message: "Grade must be a valid number between 0 and 100.")
                                 return
                             }
+                            _ = store.setAssignmentCategory(id: assignment.id, categoryID: categoryID)
                             if store.setAssignmentGrade(id: assignment.id, grade: parsedGrade, notes: cleanNotes) {
                                 dismiss()
                             }

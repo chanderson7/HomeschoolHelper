@@ -12,6 +12,7 @@ private enum RecordsActiveSheet: Identifiable {
     case activity
     case academicYears
     case export
+    case exportReportCard
     case portfolio
     case readingLog
     case editActivity(LearningActivity)
@@ -22,6 +23,7 @@ private enum RecordsActiveSheet: Identifiable {
         case .activity: return "activity"
         case .academicYears: return "academicYears"
         case .export: return "export"
+        case .exportReportCard: return "exportReportCard"
         case .portfolio: return "portfolio"
         case .readingLog: return "readingLog"
         case .editActivity(let activity): return "editActivity-\(activity.id.uuidString)"
@@ -95,6 +97,8 @@ struct RecordsView: View {
             AcademicYearsView(selectedYearID: $selectedYearID)
         case .export:
             ExportRecordsSheet(initialYear: currentYear)
+        case .exportReportCard:
+            ExportRecordsSheet(initialYear: currentYear, initialReportType: .reportCard)
         case .portfolio:
             PortfolioView()
         case .readingLog:
@@ -338,6 +342,28 @@ struct RecordsView: View {
                 .padding(.vertical, 4)
             }
             .accessibilityIdentifier("openPortfolio")
+
+            Button { activeSheet = .exportReportCard } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "chart.bar.doc.horizontal.fill")
+                        .font(.title3)
+                        .foregroundStyle(Sage.accent)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Academic report cards")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                        Text("Quarterly/semester grades, category weights & GPA")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.vertical, 4)
+            }
+            .accessibilityIdentifier("openReportCard")
         }
     }
 
@@ -930,14 +956,21 @@ private struct ExportRecordsSheet: View {
     @EnvironmentObject private var store: HomeschoolStore
     @Environment(\.dismiss) private var dismiss
     let initialYear: AcademicYear
+    let initialReportType: ReportType
 
-    @State private var reportType: ReportType = .attendance
+    @State private var reportType: ReportType
     @State private var exportFormat: ExportFormat = .pdf
     @State private var selectedStudentID: UUID? = nil
     @State private var selectedYearID: UUID?
 
     @State private var exportedFile: ExportedReportFile?
     @State private var exportError: String?
+
+    init(initialYear: AcademicYear, initialReportType: ReportType = .attendance) {
+        self.initialYear = initialYear
+        self.initialReportType = initialReportType
+        _reportType = State(initialValue: initialReportType)
+    }
 
     private var activeYear: AcademicYear {
         if let selectedYearID, let year = store.academicYear(for: selectedYearID) {
@@ -1136,6 +1169,8 @@ private struct ExportRecordsSheet: View {
                     csvString = HomeschoolCSVGenerator.generateChronicleCSV(state: store.state, student: student, year: year)
                 case .transcript:
                     csvString = HomeschoolCSVGenerator.generateTranscriptCSV(state: store.state, student: student, year: year)
+                case .reportCard:
+                    csvString = HomeschoolCSVGenerator.generateReportCardCSV(state: store.state, student: student, year: year)
                 case .readingLog:
                     csvString = HomeschoolCSVGenerator.generateReadingLogCSV(state: store.state, student: student, year: year)
                 }

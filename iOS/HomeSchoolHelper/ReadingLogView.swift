@@ -415,6 +415,7 @@ struct AddBookView: View {
     @State private var title: String = ""
     @State private var author: String = ""
     @State private var genre: String = ""
+    @State private var isbn: String = ""
     @State private var format: BookFormat = .physical
     @State private var status: BookStatus = .reading
     @State private var totalPagesText: String = ""
@@ -423,6 +424,7 @@ struct AddBookView: View {
     @State private var notes: String = ""
     @State private var startDay: String = SchoolDate.today
     @State private var completedDay: String = ""
+    @State private var showingScanner = false
 
     init(defaultStudentID: UUID? = nil) {
         self.defaultStudentID = defaultStudentID
@@ -449,6 +451,21 @@ struct AddBookView: View {
                         .accessibilityIdentifier("bookAuthorInput")
                     TextField("Genre (e.g., Classic Fiction, Science)", text: $genre)
                         .accessibilityIdentifier("bookGenreInput")
+
+                    HStack {
+                        TextField("ISBN (Optional)", text: $isbn)
+                            .keyboardType(.numberPad)
+                            .accessibilityIdentifier("bookIsbnInput")
+                        Button {
+                            showingScanner = true
+                        } label: {
+                            Image(systemName: "barcode.viewfinder")
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(Sage.accent)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Scan Barcode")
+                    }
 
                     Picker("Format", selection: $format) {
                         ForEach(BookFormat.allCases) { fmt in
@@ -532,12 +549,32 @@ struct AddBookView: View {
                         dismiss()
                     }
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showingScanner = true
+                    } label: {
+                        Label("Scan Barcode", systemImage: "barcode.viewfinder")
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         saveBook()
                     }
                     .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     .accessibilityIdentifier("saveBookButton")
+                }
+            }
+            .sheet(isPresented: $showingScanner) {
+                ISBNScannerSheet { result in
+                    title = result.title
+                    author = result.author
+                    isbn = result.isbn
+                    if let pages = result.totalPages {
+                        totalPagesText = "\(pages)"
+                    }
+                    if let g = result.genre, genre.isEmpty {
+                        genre = g
+                    }
                 }
             }
             .onAppear {
@@ -555,12 +592,14 @@ struct AddBookView: View {
         let currentPage = Int(currentPageText)
         let finalRating = rating > 0 ? rating : nil
         let compDay = status == .completed ? (completedDay.isEmpty ? SchoolDate.today : completedDay) : nil
+        let trimmedIsbn = isbn.trimmingCharacters(in: .whitespacesAndNewlines)
 
         let success = store.addBook(
             studentID: studentID,
             title: title,
             author: author,
             genre: genre.isEmpty ? nil : genre,
+            isbn: trimmedIsbn.isEmpty ? nil : trimmedIsbn,
             format: format,
             status: status,
             totalPages: totalPages,
@@ -777,6 +816,13 @@ struct BookDetailView: View {
                         }
                     }
                     .padding(.top, 2)
+                }
+
+                if let isbn = book.isbn, !isbn.isEmpty {
+                    Text("ISBN: \(isbn)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 1)
                 }
             }
         }
@@ -1027,6 +1073,7 @@ struct EditBookView: View {
     @State private var title: String
     @State private var author: String
     @State private var genre: String
+    @State private var isbn: String
     @State private var format: BookFormat
     @State private var status: BookStatus
     @State private var totalPagesText: String
@@ -1035,12 +1082,14 @@ struct EditBookView: View {
     @State private var notes: String
     @State private var startDay: String
     @State private var completedDay: String
+    @State private var showingScanner = false
 
     init(book: BookEntry) {
         self.book = book
         _title = State(initialValue: book.title)
         _author = State(initialValue: book.author)
         _genre = State(initialValue: book.genre ?? "")
+        _isbn = State(initialValue: book.isbn ?? "")
         _format = State(initialValue: book.format)
         _status = State(initialValue: book.status)
         _totalPagesText = State(initialValue: book.totalPages != nil ? "\(book.totalPages!)" : "")
@@ -1058,6 +1107,20 @@ struct EditBookView: View {
                     TextField("Title", text: $title)
                     TextField("Author", text: $author)
                     TextField("Genre", text: $genre)
+
+                    HStack {
+                        TextField("ISBN (Optional)", text: $isbn)
+                            .keyboardType(.numberPad)
+                        Button {
+                            showingScanner = true
+                        } label: {
+                            Image(systemName: "barcode.viewfinder")
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(Sage.accent)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Scan Barcode")
+                    }
 
                     Picker("Format", selection: $format) {
                         ForEach(BookFormat.allCases) { fmt in
@@ -1135,11 +1198,31 @@ struct EditBookView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showingScanner = true
+                    } label: {
+                        Label("Scan Barcode", systemImage: "barcode.viewfinder")
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         saveChanges()
                     }
                     .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .sheet(isPresented: $showingScanner) {
+                ISBNScannerSheet { result in
+                    title = result.title
+                    author = result.author
+                    isbn = result.isbn
+                    if let pages = result.totalPages {
+                        totalPagesText = "\(pages)"
+                    }
+                    if let g = result.genre, genre.isEmpty {
+                        genre = g
+                    }
                 }
             }
         }
@@ -1149,12 +1232,14 @@ struct EditBookView: View {
         let totalPages = Int(totalPagesText)
         let currentPage = Int(currentPageText)
         let finalRating = rating > 0 ? rating : nil
+        let trimmedIsbn = isbn.trimmingCharacters(in: .whitespacesAndNewlines)
 
         let success = store.updateBook(
             id: book.id,
             title: title,
             author: author,
             genre: genre.isEmpty ? nil : genre,
+            isbn: trimmedIsbn.isEmpty ? nil : trimmedIsbn,
             format: format,
             status: status,
             totalPages: totalPages,

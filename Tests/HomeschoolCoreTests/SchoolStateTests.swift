@@ -1156,5 +1156,146 @@ final class SchoolStateTests: XCTestCase {
         XCTAssertEqual(decoded.readingLogs.count, 0)
         XCTAssertNoThrow(try decoded.validate())
     }
+
+    func testGradeCategoryCRUDAndWeightValidation() throws {
+        var state = SchoolState()
+        let studentID = try state.addStudent(name: "Leo", gradeLevel: "9")
+        let courseID = try state.addCourse(
+            title: "Physics",
+            studentIDs: [studentID],
+            lessonTitles: ["L1", "L2"],
+            startDay: nil,
+            weekdays: []
+        )
+
+        // Add categories
+        let testsID = try state.addGradeCategory(courseID: courseID, name: "Tests", weight: 0.5)
+        let hwID = try state.addGradeCategory(courseID: courseID, name: "Homework", weight: 0.3)
+        XCTAssertEqual(state.gradeCategories.count, 2)
+
+        // Adding category that exceeds 100% total weight should fail
+        XCTAssertThrowsError(try state.addGradeCategory(courseID: courseID, name: "Labs", weight: 0.3)) { error in
+            guard case SchoolStateError.invalidValue = error else {
+                return XCTFail("Expected invalidValue error but got \(error)")
+            }
+        }
+
+        // Updating category
+        try state.updateGradeCategory(id: hwID, name: "Daily Homework", weight: 0.4)
+        let updatedHw = state.gradeCategories.first { $0.id == hwID }
+        XCTAssertEqual(updatedHw?.name, "Daily Homework")
+        XCTAssertEqual(updatedHw?.weight, 0.4)
+
+        // Updating category to exceed 100% should fail
+        XCTAssertThrowsError(try state.updateGradeCategory(id: hwID, weight: 0.6))
+
+        // Deleting category
+        try state.deleteGradeCategory(id: testsID)
+        XCTAssertEqual(state.gradeCategories.count, 1)
+        XCTAssertEqual(state.gradeCategories.first?.id, hwID)
+    }
+
+    func testWeightedCourseGradeRespectsCategoryWeights() throws {
+        var state = SchoolState()
+        let studentID = try state.addStudent(name: "Maya", gradeLevel: "10")
+        let courseID = try state.addCourse(
+            title: "Algebra II",
+            studentIDs: [studentID],
+            lessonTitles: ["Unit 1 Test", "Homework 1"],
+            startDay: nil,
+            weekdays: []
+        )
+
+        let testCatID = try state.addGradeCategory(courseID: courseID, name: "Tests", weight: 0.6)
+        let hwCatID = try state.addGradeCategory(courseID: courseID, name: "Homework", weight: 0.4)
+
+        let testLesson = state.lessons.first { $0.title == "Unit 1 Test" }!
+        let hwLesson = state.lessons.first { $0.title == "Homework 1" }!
+
+        let testAsgn = state.assignments.first { $0.lessonID == testLesson.id }!
+        let hwAsgn = state.assignments.first { $0.lessonID == hwLesson.id }!
+
+        try state.setAssignmentCategory(id: testAsgn.id, categoryID: testCatID)
+        try state.setAssignmentGrade(id: testAsgn.id, grade: 100.0)
+
+        try state.setAssignmentCategory(id: hwAsgn.id, categoryID: hwCatID)
+        try state.setAssignmentGrade(id: hwAsgn.id, grade: 50.0)
+
+        // Unweighted average would be 75.0%
+        // Weighted average: (100 * 0.6 + 50 * 0.4) / (0.6 + 0.4) = (60 + 20) / 1.0 = 80.0%
+        let finalGrade = state.courseGrade(for: studentID, courseID: courseID)
+        XCTAssertNotNil(finalGrade)
+        XCTAssertEqual(finalGrade!, 80.0, accuracy: 0.001)
+
+        // Category averages
+        let testAvg = state.categoryGrade(for: studentID, categoryID: testCatID)
+        let hwAvg = state.categoryGrade(for: studentID, categoryID: hwCatID)
+        XCTAssertEqual(testAvg, 100.0)
+        XCTAssertEqual(hwAvg, 50.0)
+    }
+
+    func testISBNFieldOnBookEntryAndBackwardCompat() throws {
+        var state = SchoolState()
+        let studentID = try state.addStudent(name: "Ben", gradeLevel: "5")
+        let bookID = try state.addBook(
+            studentID: studentID,
+            title: "The Hobbit",
+            author: "J.R.R. Tolkien",
+            isbn: "9780547928227"
+        )
+
+        let book = state.books.first { $0.id == bookID }
+        XCTAssertEqual(book?.isbn, "9780547928227")
+
+        try state.updateBook(id: bookID, isbn: "9780007525492")
+        XCTAssertEqual(state.books.first { $0.id == bookID }?.isbn, "9780007525492")
+
+        // Backward compatibility: JSON with no isbn and no gradeCategories decodes cleanly
+        let json = """
+        {
+            "schemaVersion": 1,
+            "students": [{"id": "\(studentID.uuidString)", "name": "Ben", "gradeLevel": "5"}],
+            "courses": [],
+            "lessons": [],
+            "assignments": [],
+            "attendance": [],
+            "activities": [],
+            "books": [{"id": "\(UUID().uuidString)", "studentID": "\(studentID.uuidString)", "title": "Old Book", "author": "Old Author", "format": "Physical Book", "status": "Currently Reading"}]
+        }
+        """
+        let decoded = try JSONDecoder().decode(SchoolState.self, from: Data(json.utf8))
+        XCTAssertEqual(decoded.books.count, 1)
+        XCTAssertNil(decoded.books.first?.isbn)
+        XCTAssertEqual(decoded.gradeCategories.count, 0)
+        XCTAssertNoThrow(try decoded.validate())
+    }
+
+    func testGradeCategoryDeletionClearsAssignmentCategoryID() throws {
+        var state = SchoolState()
+        let studentID = try state.addStudent(name: "Sam", gradeLevel: "7")
+        let courseID = try state.addCourse(
+            title: "History",
+            studentIDs: [studentID],
+            lessonTitles: ["Chapter 1"],
+            startDay: nil,
+            weekdays: []
+        )
+
+        let catID = try state.addGradeCategory(courseID: courseID, name: "Quizzes", weight: 0.25)
+        let asgn = state.assignments.first!
+        try state.setAssignmentCategory(id: asgn.id, categoryID: catID)
+        XCTAssertEqual(state.assignments.first?.categoryID, catID)
+
+        // Deleting category should clear categoryID on assignment
+        try state.deleteGradeCategory(id: catID)
+        XCTAssertEqual(state.gradeCategories.count, 0)
+        XCTAssertNil(state.assignments.first?.categoryID)
+
+        // Deleting course should cascade-delete any remaining categories
+        _ = try state.addGradeCategory(courseID: courseID, name: "Final", weight: 0.5)
+        XCTAssertEqual(state.gradeCategories.count, 1)
+        try state.deleteCourse(id: courseID)
+        XCTAssertEqual(state.gradeCategories.count, 0)
+    }
 }
 

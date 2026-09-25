@@ -73,6 +73,7 @@ public struct Assignment: Codable, Equatable, Sendable, Identifiable {
     public var completedDay: String?
     public var grade: Double?
     public var notes: String?
+    public var categoryID: UUID?
 
     public init(
         id: UUID = UUID(),
@@ -82,7 +83,8 @@ public struct Assignment: Codable, Equatable, Sendable, Identifiable {
         status: AssignmentStatus = .planned,
         completedDay: String? = nil,
         grade: Double? = nil,
-        notes: String? = nil
+        notes: String? = nil,
+        categoryID: UUID? = nil
     ) {
         self.id = id
         self.studentID = studentID
@@ -92,6 +94,7 @@ public struct Assignment: Codable, Equatable, Sendable, Identifiable {
         self.completedDay = completedDay
         self.grade = grade
         self.notes = notes
+        self.categoryID = categoryID
     }
 
     public var letterGrade: String? {
@@ -128,7 +131,7 @@ public struct Assignment: Codable, Equatable, Sendable, Identifiable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, studentID, lessonID, scheduledDay, status, completedDay, grade, notes
+        case id, studentID, lessonID, scheduledDay, status, completedDay, grade, notes, categoryID
     }
 
     public init(from decoder: Decoder) throws {
@@ -141,6 +144,7 @@ public struct Assignment: Codable, Equatable, Sendable, Identifiable {
         completedDay = try container.decodeIfPresent(String.self, forKey: .completedDay)
         grade = try container.decodeIfPresent(Double.self, forKey: .grade)
         notes = try container.decodeIfPresent(String.self, forKey: .notes)
+        categoryID = try container.decodeIfPresent(UUID.self, forKey: .categoryID)
     }
 }
 
@@ -296,6 +300,7 @@ public struct BookEntry: Codable, Equatable, Sendable, Identifiable {
     public var title: String
     public var author: String
     public var genre: String?
+    public var isbn: String?
     public var format: BookFormat
     public var status: BookStatus
     public var totalPages: Int?
@@ -312,6 +317,7 @@ public struct BookEntry: Codable, Equatable, Sendable, Identifiable {
         title: String,
         author: String,
         genre: String? = nil,
+        isbn: String? = nil,
         format: BookFormat = .physical,
         status: BookStatus = .reading,
         totalPages: Int? = nil,
@@ -327,6 +333,7 @@ public struct BookEntry: Codable, Equatable, Sendable, Identifiable {
         self.title = title
         self.author = author
         self.genre = genre
+        self.isbn = isbn
         self.format = format
         self.status = status
         self.totalPages = totalPages
@@ -367,6 +374,28 @@ public struct ReadingLogEntry: Codable, Equatable, Sendable, Identifiable {
         self.pagesRead = pagesRead
         self.notes = notes
         self.activityID = activityID
+    }
+}
+
+// MARK: - Grade Categories
+
+public struct GradeCategory: Codable, Equatable, Sendable, Identifiable {
+    public var id: UUID
+    public var courseID: UUID
+    public var name: String
+    /// Fraction of the course grade (0.001 – 1.0). All categories for a course should sum to ≤ 1.0.
+    public var weight: Double
+
+    public init(
+        id: UUID = UUID(),
+        courseID: UUID,
+        name: String,
+        weight: Double
+    ) {
+        self.id = id
+        self.courseID = courseID
+        self.name = name
+        self.weight = weight
     }
 }
 
@@ -541,6 +570,7 @@ public struct SchoolState: Codable, Equatable, Sendable {
     public var portfolioItems: [PortfolioItem]
     public var books: [BookEntry]
     public var readingLogs: [ReadingLogEntry]
+    public var gradeCategories: [GradeCategory]
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion
@@ -558,6 +588,7 @@ public struct SchoolState: Codable, Equatable, Sendable {
         case portfolioItems
         case books
         case readingLogs
+        case gradeCategories
     }
 
     public init(
@@ -575,7 +606,8 @@ public struct SchoolState: Codable, Equatable, Sendable {
         selectedStateCode: String? = nil,
         portfolioItems: [PortfolioItem] = [],
         books: [BookEntry] = [],
-        readingLogs: [ReadingLogEntry] = []
+        readingLogs: [ReadingLogEntry] = [],
+        gradeCategories: [GradeCategory] = []
     ) {
         self.schemaVersion = schemaVersion
         self.students = students
@@ -592,6 +624,7 @@ public struct SchoolState: Codable, Equatable, Sendable {
         self.portfolioItems = portfolioItems
         self.books = books
         self.readingLogs = readingLogs
+        self.gradeCategories = gradeCategories
     }
 
     public init(from decoder: Decoder) throws {
@@ -611,6 +644,7 @@ public struct SchoolState: Codable, Equatable, Sendable {
         self.portfolioItems = try container.decodeIfPresent([PortfolioItem].self, forKey: .portfolioItems) ?? []
         self.books = try container.decodeIfPresent([BookEntry].self, forKey: .books) ?? []
         self.readingLogs = try container.decodeIfPresent([ReadingLogEntry].self, forKey: .readingLogs) ?? []
+        self.gradeCategories = try container.decodeIfPresent([GradeCategory].self, forKey: .gradeCategories) ?? []
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -630,6 +664,7 @@ public struct SchoolState: Codable, Equatable, Sendable {
         try container.encode(portfolioItems, forKey: .portfolioItems)
         try container.encode(books, forKey: .books)
         try container.encode(readingLogs, forKey: .readingLogs)
+        try container.encode(gradeCategories, forKey: .gradeCategories)
     }
 
     public func validate() throws {
@@ -855,6 +890,27 @@ public struct SchoolState: Codable, Equatable, Sendable {
                 }
             }
         }
+
+        try validateUniqueIDs(gradeCategories.map(\.id), collection: "grade categories")
+        var categoryWeightSums: [UUID: Double] = [:]
+        for category in gradeCategories {
+            guard courseIDs.contains(category.courseID) else {
+                throw SchoolStateError.danglingReference("A grade category refers to a missing course")
+            }
+            let name = category.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else {
+                throw SchoolStateError.invalidValue("Grade category name cannot be blank.")
+            }
+            guard category.weight > 0 && category.weight <= 1.0 else {
+                throw SchoolStateError.invalidValue("Grade category weight must be between 0.001 and 1.0.")
+            }
+            categoryWeightSums[category.courseID, default: 0] += category.weight
+        }
+        for (_, sum) in categoryWeightSums {
+            guard sum <= 1.001 else {
+                throw SchoolStateError.invalidValue("Grade category weights for a course must not exceed 100% in total.")
+            }
+        }
     }
 
     @discardableResult
@@ -1063,6 +1119,8 @@ public struct SchoolState: Codable, Equatable, Sendable {
                 portfolioItems[i].assignmentID = nil
             }
         }
+        // Remove grade categories belonging to this course.
+        gradeCategories.removeAll { $0.courseID == id }
         try validate()
     }
 
@@ -1444,6 +1502,20 @@ public struct SchoolState: Codable, Equatable, Sendable {
         try validate()
     }
 
+    public mutating func setAssignmentCategory(id: UUID, categoryID: UUID?) throws {
+        try validate()
+        guard let index = assignments.firstIndex(where: { $0.id == id }) else {
+            throw SchoolStateError.unknownAssignment(id)
+        }
+        if let categoryID {
+            guard gradeCategories.contains(where: { $0.id == categoryID }) else {
+                throw SchoolStateError.invalidValue("That grade category no longer exists.")
+            }
+        }
+        assignments[index].categoryID = categoryID
+        try validate()
+    }
+
     public mutating func updateCourseCredits(id: UUID, creditHours: Double?, weight: Double?) throws {
         try validate()
         guard let index = courses.firstIndex(where: { $0.id == id }) else {
@@ -1467,10 +1539,47 @@ public struct SchoolState: Codable, Equatable, Sendable {
     public func courseGrade(for studentID: UUID, courseID: UUID) -> Double? {
         let courseLessonIDs = Set(lessons.filter { $0.courseID == courseID }.map(\.id))
         let studentAssignments = assignments.filter { $0.studentID == studentID && courseLessonIDs.contains($0.lessonID) }
-        let graded = studentAssignments.compactMap(\.grade)
+        let courseCategories = gradeCategories.filter { $0.courseID == courseID }
+
+        // If no grade categories defined, fall back to simple average.
+        guard !courseCategories.isEmpty else {
+            let graded = studentAssignments.compactMap(\.grade)
+            guard !graded.isEmpty else { return nil }
+            return graded.reduce(0, +) / Double(graded.count)
+        }
+
+        // Weighted category average.
+        var weightedSum: Double = 0
+        var totalWeight: Double = 0
+        for category in courseCategories {
+            let categoryAssignments = studentAssignments.filter { $0.categoryID == category.id }
+            let graded = categoryAssignments.compactMap(\.grade)
+            guard !graded.isEmpty else { continue }
+            let avg = graded.reduce(0, +) / Double(graded.count)
+            weightedSum += avg * category.weight
+            totalWeight += category.weight
+        }
+
+        // Also include any assignments not in a category (weight them as uncategorized).
+        let categorizedIDs = Set(courseCategories.map(\.id))
+        let uncategorized = studentAssignments.filter { $0.categoryID == nil || !categorizedIDs.contains($0.categoryID!) }
+        let uncategorizedGraded = uncategorized.compactMap(\.grade)
+        let remainingWeight = max(0, 1.0 - totalWeight)
+        if !uncategorizedGraded.isEmpty && remainingWeight > 0 {
+            let avg = uncategorizedGraded.reduce(0, +) / Double(uncategorizedGraded.count)
+            weightedSum += avg * remainingWeight
+            totalWeight += remainingWeight
+        }
+
+        guard totalWeight > 0 else { return nil }
+        return weightedSum / totalWeight
+    }
+
+    /// Returns the average grade for all graded assignments belonging to a specific grade category and student.
+    public func categoryGrade(for studentID: UUID, categoryID: UUID) -> Double? {
+        let graded = assignments.filter { $0.studentID == studentID && $0.categoryID == categoryID }.compactMap(\.grade)
         guard !graded.isEmpty else { return nil }
-        let sum = graded.reduce(0, +)
-        return sum / Double(graded.count)
+        return graded.reduce(0, +) / Double(graded.count)
     }
 
     public func courseCreditsEarned(for studentID: UUID, courseID: UUID) -> Double {
@@ -1709,6 +1818,7 @@ public struct SchoolState: Codable, Equatable, Sendable {
         title: String,
         author: String,
         genre: String? = nil,
+        isbn: String? = nil,
         format: BookFormat = .physical,
         status: BookStatus = .reading,
         totalPages: Int? = nil,
@@ -1751,6 +1861,7 @@ public struct SchoolState: Codable, Equatable, Sendable {
             title: cleanedTitle,
             author: cleanedAuthor,
             genre: genre?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? genre?.trimmingCharacters(in: .whitespacesAndNewlines) : nil,
+            isbn: isbn?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? isbn?.trimmingCharacters(in: .whitespacesAndNewlines) : nil,
             format: format,
             status: status,
             totalPages: totalPages,
@@ -1771,6 +1882,7 @@ public struct SchoolState: Codable, Equatable, Sendable {
         title: String? = nil,
         author: String? = nil,
         genre: String? = nil,
+        isbn: String? = nil,
         format: BookFormat? = nil,
         status: BookStatus? = nil,
         totalPages: Int? = nil,
@@ -1794,6 +1906,10 @@ public struct SchoolState: Codable, Equatable, Sendable {
         }
         if let genre {
             books[index].genre = genre.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : genre.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if let isbn {
+            let trimmed = isbn.trimmingCharacters(in: .whitespacesAndNewlines)
+            books[index].isbn = trimmed.isEmpty ? nil : trimmed
         }
         if let format {
             books[index].format = format
@@ -1840,6 +1956,66 @@ public struct SchoolState: Codable, Equatable, Sendable {
         }
         books.remove(at: index)
         readingLogs.removeAll { $0.bookID == id }
+        try validate()
+    }
+
+    // MARK: - Grade Category Mutations
+
+    @discardableResult
+    public mutating func addGradeCategory(courseID: UUID, name: String, weight: Double) throws -> UUID {
+        try validate()
+        guard courses.contains(where: { $0.id == courseID }) else {
+            throw SchoolStateError.unknownCourse(courseID)
+        }
+        let cleanedName = try cleanedRequiredText(name, field: "Grade category name")
+        guard weight > 0 && weight <= 1.0 else {
+            throw SchoolStateError.invalidValue("Grade category weight must be between 0.001 and 1.0.")
+        }
+        let existing = gradeCategories.filter { $0.courseID == courseID }
+        let newSum = existing.reduce(0) { $0 + $1.weight } + weight
+        guard newSum <= 1.001 else {
+            throw SchoolStateError.invalidValue("Adding this category would cause the total weight to exceed 100% for this course.")
+        }
+        let category = GradeCategory(courseID: courseID, name: cleanedName, weight: weight)
+        gradeCategories.append(category)
+        try validate()
+        return category.id
+    }
+
+    public mutating func updateGradeCategory(id: UUID, name: String? = nil, weight: Double? = nil) throws {
+        try validate()
+        guard let index = gradeCategories.firstIndex(where: { $0.id == id }) else {
+            throw SchoolStateError.invalidValue("That grade category no longer exists.")
+        }
+        if let name {
+            gradeCategories[index].name = try cleanedRequiredText(name, field: "Grade category name")
+        }
+        if let weight {
+            guard weight > 0 && weight <= 1.0 else {
+                throw SchoolStateError.invalidValue("Grade category weight must be between 0.001 and 1.0.")
+            }
+            let courseID = gradeCategories[index].courseID
+            let othersSum = gradeCategories.enumerated()
+                .filter { $0.offset != index && $0.element.courseID == courseID }
+                .reduce(0) { $0 + $1.element.weight }
+            guard othersSum + weight <= 1.001 else {
+                throw SchoolStateError.invalidValue("Updating this weight would cause the total to exceed 100% for this course.")
+            }
+            gradeCategories[index].weight = weight
+        }
+        try validate()
+    }
+
+    public mutating func deleteGradeCategory(id: UUID) throws {
+        try validate()
+        guard let index = gradeCategories.firstIndex(where: { $0.id == id }) else {
+            throw SchoolStateError.invalidValue("That grade category no longer exists.")
+        }
+        gradeCategories.remove(at: index)
+        // Clear categoryID on any assignments that referenced this category.
+        for i in assignments.indices where assignments[i].categoryID == id {
+            assignments[i].categoryID = nil
+        }
         try validate()
     }
 

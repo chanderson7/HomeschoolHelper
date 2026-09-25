@@ -460,6 +460,7 @@ final class HomeschoolStore: ObservableObject {
         title: String,
         author: String,
         genre: String? = nil,
+        isbn: String? = nil,
         format: BookFormat = .physical,
         status: BookStatus = .reading,
         totalPages: Int? = nil,
@@ -476,6 +477,7 @@ final class HomeschoolStore: ObservableObject {
                 title: title,
                 author: author,
                 genre: genre,
+                isbn: isbn,
                 format: format,
                 status: status,
                 totalPages: totalPages,
@@ -495,6 +497,7 @@ final class HomeschoolStore: ObservableObject {
         title: String? = nil,
         author: String? = nil,
         genre: String? = nil,
+        isbn: String? = nil,
         format: BookFormat? = nil,
         status: BookStatus? = nil,
         totalPages: Int? = nil,
@@ -511,6 +514,7 @@ final class HomeschoolStore: ObservableObject {
                 title: title,
                 author: author,
                 genre: genre,
+                isbn: isbn,
                 format: format,
                 status: status,
                 totalPages: totalPages,
@@ -627,6 +631,44 @@ final class HomeschoolStore: ObservableObject {
     func activity(for id: UUID) -> LearningActivity? { state.activities.first { $0.id == id } }
     func attendance(for id: UUID) -> AttendanceEntry? { state.attendance.first { $0.id == id } }
     func portfolioItem(for id: UUID) -> PortfolioItem? { state.portfolioItems.first { $0.id == id } }
+
+    // MARK: - Grade Categories
+
+    @discardableResult
+    func addGradeCategory(courseID: UUID, name: String, weight: Double) -> Bool {
+        update("add grade category") { state in
+            _ = try state.addGradeCategory(courseID: courseID, name: name, weight: weight)
+        }
+    }
+
+    @discardableResult
+    func updateGradeCategory(id: UUID, name: String? = nil, weight: Double? = nil) -> Bool {
+        update("update grade category") { state in
+            try state.updateGradeCategory(id: id, name: name, weight: weight)
+        }
+    }
+
+    @discardableResult
+    func deleteGradeCategory(id: UUID) -> Bool {
+        update("delete grade category") { state in
+            try state.deleteGradeCategory(id: id)
+        }
+    }
+
+    func gradeCategories(for courseID: UUID) -> [GradeCategory] {
+        state.gradeCategories.filter { $0.courseID == courseID }
+    }
+
+    func categoryGrade(for studentID: UUID, categoryID: UUID) -> Double? {
+        state.categoryGrade(for: studentID, categoryID: categoryID)
+    }
+
+    @discardableResult
+    func setAssignmentCategory(id: UUID, categoryID: UUID?) -> Bool {
+        update("set assignment category") { state in
+            try state.setAssignmentCategory(id: id, categoryID: categoryID)
+        }
+    }
 
     static func defaultFileURL() -> URL {
         #if DEBUG

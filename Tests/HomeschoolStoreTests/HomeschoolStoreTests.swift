@@ -491,6 +491,46 @@ final class HomeschoolStoreTests: XCTestCase {
             XCTAssertEqual(store.state.books.count, 0)
         }
     }
+
+    func testStoreGradeCategoryMutations() async {
+        let repository = InMemorySchoolRepository(state: SchoolState())
+
+        await MainActor.run {
+            let store = HomeschoolStore(repository: repository)
+            _ = store.addStudent(name: "Oliver", gradeLevel: "8")
+            let student = store.state.students[0]
+            _ = store.addCourse(title: "Science", studentIDs: [student.id], lessonTitles: ["Lab 1"], startDay: nil, weekdays: [1])
+            let course = store.state.courses[0]
+
+            // Add category
+            XCTAssertTrue(store.addGradeCategory(courseID: course.id, name: "Labs", weight: 0.5))
+            XCTAssertEqual(store.gradeCategories(for: course.id).count, 1)
+            let cat = store.gradeCategories(for: course.id)[0]
+            XCTAssertEqual(cat.name, "Labs")
+            XCTAssertEqual(cat.weight, 0.5)
+
+            // Update category
+            XCTAssertTrue(store.updateGradeCategory(id: cat.id, name: "Science Labs", weight: 0.6))
+            let updated = store.gradeCategories(for: course.id)[0]
+            XCTAssertEqual(updated.name, "Science Labs")
+            XCTAssertEqual(updated.weight, 0.6)
+
+            // Assign category to assignment
+            let asgn = store.state.assignments[0]
+            XCTAssertTrue(store.setAssignmentCategory(id: asgn.id, categoryID: cat.id))
+            XCTAssertEqual(store.state.assignments[0].categoryID, cat.id)
+
+            // Grade assignment and verify categoryGrade & courseGrade
+            _ = store.setAssignmentGrade(id: asgn.id, grade: 92.0)
+            XCTAssertEqual(store.categoryGrade(for: student.id, categoryID: cat.id), 92.0)
+            XCTAssertEqual(store.courseGrade(for: student.id, courseID: course.id), 92.0)
+
+            // Delete category
+            XCTAssertTrue(store.deleteGradeCategory(id: cat.id))
+            XCTAssertEqual(store.gradeCategories(for: course.id).count, 0)
+            XCTAssertNil(store.state.assignments[0].categoryID)
+        }
+    }
 }
 
 private enum FakeRepositoryError: LocalizedError, Sendable {

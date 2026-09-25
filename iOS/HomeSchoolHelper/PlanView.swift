@@ -296,9 +296,22 @@ private struct CourseRoadmapDetailView: View {
     @State private var addingLesson = false
     @State private var editingLesson: Lesson?
     @State private var lessonToDelete: Lesson?
+    @State private var showingGradeBook = false
 
     private var currentCourse: Course {
         store.course(for: course.id) ?? course
+    }
+
+    private var activeStudent: Student? {
+        if let studentID {
+            return store.student(for: studentID)
+        }
+        return store.state.students.first
+    }
+
+    private var courseGradeValue: Double? {
+        guard let student = activeStudent else { return nil }
+        return store.courseGrade(for: student.id, courseID: course.id)
     }
 
     private var lessons: [Lesson] {
@@ -326,9 +339,17 @@ private struct CourseRoadmapDetailView: View {
                             .foregroundStyle(Sage.accent)
                         Text(currentCourse.title)
                             .font(.title.weight(.bold))
-                        Text("\(completedLessonIDs.count) of \(lessons.count) lessons completed")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                        HStack {
+                            Text("\(completedLessonIDs.count) of \(lessons.count) lessons completed")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            if let grade = courseGradeValue {
+                                Spacer()
+                                Text(String(format: "Grade: %.1f%%", grade))
+                                    .font(.subheadline.weight(.bold))
+                                    .foregroundStyle(Sage.accent)
+                            }
+                        }
                     }
                     .padding()
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -445,6 +466,13 @@ private struct CourseRoadmapDetailView: View {
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
                         Button {
+                            showingGradeBook = true
+                        } label: {
+                            Label("Grade Book", systemImage: "chart.bar.doc.horizontal")
+                        }
+                        .accessibilityIdentifier("roadmapGradeBook")
+
+                        Button {
                             addingLesson = true
                         } label: {
                             Label("Add Lesson", systemImage: "plus")
@@ -473,6 +501,14 @@ private struct CourseRoadmapDetailView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done", action: dismiss.callAsFunction)
+                }
+            }
+            .sheet(isPresented: $showingGradeBook) {
+                if let student = activeStudent {
+                    NavigationStack {
+                        GradeBookView(course: currentCourse, student: student)
+                            .environmentObject(store)
+                    }
                 }
             }
             .sheet(isPresented: $addingLesson) {
