@@ -119,9 +119,96 @@ final class HomeschoolStore: ObservableObject {
         }
     }
 
+    @discardableResult
+    func updateStudent(id: UUID, name: String, gradeLevel: String) -> Bool {
+        update("update student") { state in
+            try state.updateStudent(id: id, name: name, gradeLevel: gradeLevel)
+        }
+    }
+
+    @discardableResult
+    func deleteStudent(id: UUID) -> Bool {
+        update("delete student") { state in
+            try state.deleteStudent(id: id)
+        }
+    }
+
+    @discardableResult
+    func updateCourse(id: UUID, title: String) -> Bool {
+        update("update course") { state in
+            try state.updateCourse(id: id, title: title)
+        }
+    }
+
+    @discardableResult
+    func deleteCourse(id: UUID) -> Bool {
+        update("delete course") { state in
+            try state.deleteCourse(id: id)
+        }
+    }
+
+    @discardableResult
+    func updateLesson(id: UUID, title: String) -> Bool {
+        update("update lesson") { state in
+            try state.updateLesson(id: id, title: title)
+        }
+    }
+
+    @discardableResult
+    func deleteLesson(id: UUID) -> Bool {
+        update("delete lesson") { state in
+            try state.deleteLesson(id: id)
+        }
+    }
+
+    @discardableResult
+    func addLesson(to courseID: UUID, title: String) -> Bool {
+        update("add lesson") { state in
+            _ = try state.addLesson(courseID: courseID, title: title)
+        }
+    }
+
+    @discardableResult
+    func reorderLessons(courseID: UUID, lessonIDsInOrder: [UUID]) -> Bool {
+        update("reorder lessons") { state in
+            try state.reorderLessons(courseID: courseID, lessonIDsInOrder: lessonIDsInOrder)
+        }
+    }
+
+    @discardableResult
+    func updateAttendance(id: UUID, day: String? = nil, minutes: Int) -> Bool {
+        update("update attendance") { state in
+            try state.updateAttendance(id: id, day: day, minutes: minutes)
+        }
+    }
+
+    @discardableResult
+    func deleteAttendance(id: UUID) -> Bool {
+        update("delete attendance") { state in
+            try state.deleteAttendance(id: id)
+        }
+    }
+
+    @discardableResult
+    func updateActivity(id: UUID, title: String, day: String, minutes: Int) -> Bool {
+        update("update activity") { state in
+            try state.updateActivity(id: id, title: title, day: day, minutes: minutes)
+        }
+    }
+
+    @discardableResult
+    func deleteActivity(id: UUID) -> Bool {
+        update("delete activity") { state in
+            try state.deleteActivity(id: id)
+        }
+    }
+
     func student(for id: UUID) -> Student? { state.students.first { $0.id == id } }
+    func course(for id: UUID) -> Course? { state.courses.first { $0.id == id } }
     func lesson(for id: UUID) -> Lesson? { state.lessons.first { $0.id == id } }
     func course(for lesson: Lesson) -> Course? { state.courses.first { $0.id == lesson.courseID } }
+    func activity(for id: UUID) -> LearningActivity? { state.activities.first { $0.id == id } }
+    func attendance(for id: UUID) -> AttendanceEntry? { state.attendance.first { $0.id == id } }
 
     static func defaultFileURL() -> URL {
         #if DEBUG

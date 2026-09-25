@@ -315,4 +315,170 @@ final class SchoolStateTests: XCTestCase {
         staleCompletionDay.assignments = [Assignment(id: assignmentID, studentID: studentID, lessonID: lessonID, scheduledDay: nil, status: .planned, completedDay: "2024-01-01")]
         XCTAssertThrowsError(try staleCompletionDay.validate())
     }
+
+    func testStudentUpdateAndCascadeDelete() throws {
+        var state = SchoolState()
+        let alice = try state.addStudent(name: "Alice", gradeLevel: "3")
+        let ben = try state.addStudent(name: "Ben", gradeLevel: "5")
+        let courseID = try state.addCourse(
+            title: "Science",
+            studentIDs: [alice, ben],
+            lessonTitles: ["Planets", "Stars"],
+            startDay: nil
+        )
+        try state.confirmAttendance(studentID: alice, day: "2024-05-01", minutes: 60)
+        try state.confirmAttendance(studentID: ben, day: "2024-05-01", minutes: 60)
+        try state.logActivity(title: "Museum", studentIDs: [alice, ben], day: "2024-05-02", minutes: 90)
+
+        // Update Alice's name and grade
+        try state.updateStudent(id: alice, name: "Alice M.", gradeLevel: "4")
+        XCTAssertEqual(state.students.first { $0.id == alice }?.name, "Alice M.")
+        XCTAssertEqual(state.students.first { $0.id == alice }?.gradeLevel, "4")
+
+        // Reject invalid updates
+        XCTAssertThrowsError(try state.updateStudent(id: alice, name: " ", gradeLevel: "4"))
+        XCTAssertThrowsError(try state.updateStudent(id: UUID(), name: "Ghost", gradeLevel: "1"))
+
+        // Delete Alice: should cascade-delete her assignments, attendance, activities
+        try state.deleteStudent(id: alice)
+        XCTAssertFalse(state.students.contains { $0.id == alice })
+        XCTAssertTrue(state.students.contains { $0.id == ben })
+        XCTAssertTrue(state.assignments.allSatisfy { $0.studentID != alice })
+        XCTAssertEqual(state.assignments.filter { $0.studentID == ben }.count, 2)
+        XCTAssertTrue(state.attendance.allSatisfy { $0.studentID != alice })
+        XCTAssertEqual(state.attendance.count, 1)
+        XCTAssertTrue(state.activities.allSatisfy { $0.studentID != alice })
+        XCTAssertEqual(state.activities.count, 1)
+
+        // Deleting non-existent student throws
+        XCTAssertThrowsError(try state.deleteStudent(id: alice))
+        XCTAssertNoThrow(try state.validate())
+    }
+
+    func testCourseUpdateAndCascadeDelete() throws {
+        var state = SchoolState()
+        let alice = try state.addStudent(name: "Alice", gradeLevel: "3")
+        let courseID = try state.addCourse(
+            title: "History",
+            studentIDs: [alice],
+            lessonTitles: ["Rome", "Greece"],
+            startDay: nil
+        )
+
+        // Update Course Title
+        try state.updateCourse(id: courseID, title: "Ancient Civilizations")
+        XCTAssertEqual(state.courses.first { $0.id == courseID }?.title, "Ancient Civilizations")
+        XCTAssertThrowsError(try state.updateCourse(id: courseID, title: ""))
+        XCTAssertThrowsError(try state.updateCourse(id: UUID(), title: "Ghost"))
+
+        // Delete Course: cascades to lessons and assignments
+        try state.deleteCourse(id: courseID)
+        XCTAssertFalse(state.courses.contains { $0.id == courseID })
+        XCTAssertTrue(state.lessons.filter { $0.courseID == courseID }.isEmpty)
+        XCTAssertTrue(state.assignments.isEmpty)
+        XCTAssertThrowsError(try state.deleteCourse(id: courseID))
+        XCTAssertNoThrow(try state.validate())
+    }
+
+    func testLessonCRUDAndReorder() throws {
+        var state = SchoolState()
+        let alice = try state.addStudent(name: "Alice", gradeLevel: "3")
+        let courseID = try state.addCourse(
+            title: "Math",
+            studentIDs: [alice],
+            lessonTitles: ["L1", "L2", "L3"],
+            startDay: nil
+        )
+
+        let initialLessons = state.lessons.filter { $0.courseID == courseID }.sorted { $0.sequence < $1.sequence }
+        XCTAssertEqual(initialLessons.count, 3)
+
+        // Update Lesson
+        try state.updateLesson(id: initialLessons[0].id, title: "Fractions Basics")
+        XCTAssertEqual(state.lessons.first { $0.id == initialLessons[0].id }?.title, "Fractions Basics")
+        XCTAssertThrowsError(try state.updateLesson(id: initialLessons[0].id, title: "   "))
+        XCTAssertThrowsError(try state.updateLesson(id: UUID(), title: "Ghost"))
+
+        // Add Lesson to existing course
+        let newLessonID = try state.addLesson(courseID: courseID, title: "L4")
+        let newLesson = try XCTUnwrap(state.lessons.first { $0.id == newLessonID })
+        XCTAssertEqual(newLesson.sequence, 4)
+        // Alice should have an assignment created for this new lesson
+        XCTAssertTrue(state.assignments.contains { $0.studentID == alice && $0.lessonID == newLessonID })
+
+        // Delete middle lesson (L2)
+        let l2ID = initialLessons[1].id
+        try state.deleteLesson(id: l2ID)
+        XCTAssertFalse(state.lessons.contains { $0.id == l2ID })
+        XCTAssertFalse(state.assignments.contains { $0.lessonID == l2ID })
+
+        // Check sequence re-indexing: should be 1, 2, 3
+        let remainingLessons = state.lessons.filter { $0.courseID == courseID }.sorted { $0.sequence < $1.sequence }
+        XCTAssertEqual(remainingLessons.count, 3)
+        XCTAssertEqual(remainingLessons.map(\.sequence), [1, 2, 3])
+
+        // Reorder lessons
+        let reversedIDs = remainingLessons.reversed().map(\.id)
+        try state.reorderLessons(courseID: courseID, lessonIDsInOrder: reversedIDs)
+        let reorderedLessons = state.lessons.filter { $0.courseID == courseID }.sorted { $0.sequence < $1.sequence }
+        XCTAssertEqual(reorderedLessons.map(\.id), reversedIDs)
+        XCTAssertEqual(reorderedLessons.map(\.sequence), [1, 2, 3])
+
+        // Invalid reorder (missing lesson or mismatch)
+        XCTAssertThrowsError(try state.reorderLessons(courseID: courseID, lessonIDsInOrder: [remainingLessons[0].id]))
+        XCTAssertThrowsError(try state.reorderLessons(courseID: UUID(), lessonIDsInOrder: []))
+        XCTAssertNoThrow(try state.validate())
+    }
+
+    func testAttendanceUpdateAndDelete() throws {
+        var state = SchoolState()
+        let alice = try state.addStudent(name: "Alice", gradeLevel: "3")
+        try state.confirmAttendance(studentID: alice, day: "2024-05-10", minutes: 120)
+        let entry = try XCTUnwrap(state.attendance.first)
+
+        // Update attendance minutes
+        try state.updateAttendance(id: entry.id, minutes: 150)
+        XCTAssertEqual(state.attendance.first?.minutes, 150)
+
+        // Update attendance day
+        try state.updateAttendance(id: entry.id, day: "2024-05-11", minutes: 180)
+        XCTAssertEqual(state.attendance.first?.day, "2024-05-11")
+        XCTAssertEqual(state.attendance.first?.minutes, 180)
+
+        // Prevent duplicate day for same student
+        try state.confirmAttendance(studentID: alice, day: "2024-05-12", minutes: 60)
+        XCTAssertThrowsError(try state.updateAttendance(id: entry.id, day: "2024-05-12", minutes: 90))
+
+        // Delete attendance
+        try state.deleteAttendance(id: entry.id)
+        XCTAssertEqual(state.attendance.count, 1)
+        XCTAssertFalse(state.attendance.contains { $0.id == entry.id })
+        XCTAssertThrowsError(try state.deleteAttendance(id: entry.id))
+        XCTAssertNoThrow(try state.validate())
+    }
+
+    func testActivityUpdateAndDelete() throws {
+        var state = SchoolState()
+        let alice = try state.addStudent(name: "Alice", gradeLevel: "3")
+        try state.logActivity(title: "Library", studentIDs: [alice], day: "2024-05-10", minutes: 45)
+        let activity = try XCTUnwrap(state.activities.first)
+
+        // Update activity
+        try state.updateActivity(id: activity.id, title: "Public Library Visit", day: "2024-05-11", minutes: 60)
+        let updated = try XCTUnwrap(state.activities.first)
+        XCTAssertEqual(updated.title, "Public Library Visit")
+        XCTAssertEqual(updated.day, "2024-05-11")
+        XCTAssertEqual(updated.minutes, 60)
+
+        // Invalid update
+        XCTAssertThrowsError(try state.updateActivity(id: activity.id, title: "", day: "2024-05-11", minutes: 60))
+        XCTAssertThrowsError(try state.updateActivity(id: activity.id, title: "Title", day: "bad-date", minutes: 60))
+        XCTAssertThrowsError(try state.updateActivity(id: activity.id, title: "Title", day: "2024-05-11", minutes: -1))
+
+        // Delete activity
+        try state.deleteActivity(id: activity.id)
+        XCTAssertTrue(state.activities.isEmpty)
+        XCTAssertThrowsError(try state.deleteActivity(id: activity.id))
+        XCTAssertNoThrow(try state.validate())
+    }
 }

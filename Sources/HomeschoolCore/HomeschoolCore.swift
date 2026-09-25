@@ -103,6 +103,10 @@ public enum SchoolStateError: LocalizedError, Equatable, Sendable {
     case invalidValue(String)
     case unknownStudent(UUID)
     case unknownAssignment(UUID)
+    case unknownCourse(UUID)
+    case unknownLesson(UUID)
+    case unknownAttendance(UUID)
+    case unknownActivity(UUID)
     case invalidDate(String)
     case invalidMinutes(Int, allowed: ClosedRange<Int>)
     case duplicateID(String)
@@ -119,6 +123,14 @@ public enum SchoolStateError: LocalizedError, Equatable, Sendable {
             return "One or more selected students no longer exist. Refresh the household and try again."
         case .unknownAssignment:
             return "That assignment no longer exists. Refresh the plan and try again."
+        case .unknownCourse:
+            return "That course no longer exists. Refresh the plan and try again."
+        case .unknownLesson:
+            return "That lesson no longer exists. Refresh the plan and try again."
+        case .unknownAttendance:
+            return "That attendance record no longer exists. Refresh records and try again."
+        case .unknownActivity:
+            return "That activity no longer exists. Refresh records and try again."
         case .invalidDate(let value):
             return "\"\(value)\" is not a valid Gregorian date. Use YYYY-MM-DD."
         case .invalidMinutes(let minutes, let allowed):
@@ -388,6 +400,177 @@ public struct SchoolState: Codable, Equatable, Sendable {
         activities.append(contentsOf: selectedStudents.map {
             LearningActivity(studentID: $0, title: cleanedTitle, day: day, minutes: minutes)
         })
+    }
+
+    public mutating func updateStudent(id: UUID, name: String, gradeLevel: String) throws {
+        try validate()
+        guard let index = students.firstIndex(where: { $0.id == id }) else {
+            throw SchoolStateError.unknownStudent(id)
+        }
+        let cleanedName = try cleanedRequiredText(name, field: "Student name")
+        let cleanedGradeLevel = try cleanedRequiredText(gradeLevel, field: "Grade level")
+        students[index].name = cleanedName
+        students[index].gradeLevel = cleanedGradeLevel
+        try validate()
+    }
+
+    public mutating func deleteStudent(id: UUID) throws {
+        try validate()
+        guard let index = students.firstIndex(where: { $0.id == id }) else {
+            throw SchoolStateError.unknownStudent(id)
+        }
+        students.remove(at: index)
+        assignments.removeAll { $0.studentID == id }
+        attendance.removeAll { $0.studentID == id }
+        activities.removeAll { $0.studentID == id }
+        try validate()
+    }
+
+    public mutating func updateCourse(id: UUID, title: String) throws {
+        try validate()
+        guard let index = courses.firstIndex(where: { $0.id == id }) else {
+            throw SchoolStateError.unknownCourse(id)
+        }
+        let cleanedTitle = try cleanedRequiredText(title, field: "Course title")
+        courses[index].title = cleanedTitle
+        try validate()
+    }
+
+    public mutating func deleteCourse(id: UUID) throws {
+        try validate()
+        guard let index = courses.firstIndex(where: { $0.id == id }) else {
+            throw SchoolStateError.unknownCourse(id)
+        }
+        courses.remove(at: index)
+        let courseLessonIDs = Set(lessons.filter { $0.courseID == id }.map(\.id))
+        lessons.removeAll { $0.courseID == id }
+        assignments.removeAll { courseLessonIDs.contains($0.lessonID) }
+        try validate()
+    }
+
+    public mutating func updateLesson(id: UUID, title: String) throws {
+        try validate()
+        guard let index = lessons.firstIndex(where: { $0.id == id }) else {
+            throw SchoolStateError.unknownLesson(id)
+        }
+        let cleanedTitle = try cleanedRequiredText(title, field: "Lesson title")
+        lessons[index].title = cleanedTitle
+        try validate()
+    }
+
+    public mutating func deleteLesson(id: UUID) throws {
+        try validate()
+        guard let index = lessons.firstIndex(where: { $0.id == id }) else {
+            throw SchoolStateError.unknownLesson(id)
+        }
+        let courseID = lessons[index].courseID
+        lessons.remove(at: index)
+        assignments.removeAll { $0.lessonID == id }
+
+        // Re-index remaining lessons for this course to keep sequences contiguous 1, 2, 3...
+        let courseLessons = lessons.filter { $0.courseID == courseID }.sorted { $0.sequence < $1.sequence }
+        for (newSeq, lesson) in courseLessons.enumerated() {
+            if let originalIndex = lessons.firstIndex(where: { $0.id == lesson.id }) {
+                lessons[originalIndex].sequence = newSeq + 1
+            }
+        }
+        try validate()
+    }
+
+    @discardableResult
+    public mutating func addLesson(courseID: UUID, title: String) throws -> UUID {
+        try validate()
+        guard courses.contains(where: { $0.id == courseID }) else {
+            throw SchoolStateError.unknownCourse(courseID)
+        }
+        let cleanedTitle = try cleanedRequiredText(title, field: "Lesson title")
+        let existingLessons = lessons.filter { $0.courseID == courseID }
+        guard existingLessons.count < 365 else {
+            throw SchoolStateError.invalidValue("A course may contain at most 365 lessons.")
+        }
+        let nextSequence = (existingLessons.map(\.sequence).max() ?? 0) + 1
+        let newLesson = Lesson(courseID: courseID, title: cleanedTitle, sequence: nextSequence)
+        lessons.append(newLesson)
+
+        // Find students enrolled in this course (students who have assignments for this course)
+        let existingLessonIDs = Set(existingLessons.map(\.id))
+        let enrolledStudentIDs = Set(assignments.filter { existingLessonIDs.contains($0.lessonID) }.map(\.studentID))
+        for studentID in enrolledStudentIDs {
+            assignments.append(Assignment(studentID: studentID, lessonID: newLesson.id))
+        }
+        try validate()
+        return newLesson.id
+    }
+
+    public mutating func reorderLessons(courseID: UUID, lessonIDsInOrder: [UUID]) throws {
+        try validate()
+        guard courses.contains(where: { $0.id == courseID }) else {
+            throw SchoolStateError.unknownCourse(courseID)
+        }
+        let currentCourseLessons = lessons.filter { $0.courseID == courseID }
+        let currentLessonIDs = Set(currentCourseLessons.map(\.id))
+        guard lessonIDsInOrder.count == currentCourseLessons.count,
+              Set(lessonIDsInOrder) == currentLessonIDs else {
+            throw SchoolStateError.invalidValue("All lessons for this course must be provided in the reordered list.")
+        }
+        for (index, lessonID) in lessonIDsInOrder.enumerated() {
+            if let lessonIndex = lessons.firstIndex(where: { $0.id == lessonID }) {
+                lessons[lessonIndex].sequence = index + 1
+            }
+        }
+        try validate()
+    }
+
+    public mutating func updateAttendance(id: UUID, day: String? = nil, minutes: Int) throws {
+        try validate()
+        guard let index = attendance.firstIndex(where: { $0.id == id }) else {
+            throw SchoolStateError.unknownAttendance(id)
+        }
+        try validateMinutes(minutes, allowed: 1...1440)
+        let targetDay = day ?? attendance[index].day
+        try validateDay(targetDay)
+
+        let studentID = attendance[index].studentID
+        if attendance.contains(where: { $0.id != id && $0.studentID == studentID && $0.day == targetDay }) {
+            throw SchoolStateError.duplicateAttendance(studentID, targetDay)
+        }
+
+        attendance[index].day = targetDay
+        attendance[index].minutes = minutes
+        try validate()
+    }
+
+    public mutating func deleteAttendance(id: UUID) throws {
+        try validate()
+        guard let index = attendance.firstIndex(where: { $0.id == id }) else {
+            throw SchoolStateError.unknownAttendance(id)
+        }
+        attendance.remove(at: index)
+        try validate()
+    }
+
+    public mutating func updateActivity(id: UUID, title: String, day: String, minutes: Int) throws {
+        try validate()
+        guard let index = activities.firstIndex(where: { $0.id == id }) else {
+            throw SchoolStateError.unknownActivity(id)
+        }
+        let cleanedTitle = try cleanedRequiredText(title, field: "Activity title")
+        try validateDay(day)
+        try validateMinutes(minutes, allowed: 0...1440)
+
+        activities[index].title = cleanedTitle
+        activities[index].day = day
+        activities[index].minutes = minutes
+        try validate()
+    }
+
+    public mutating func deleteActivity(id: UUID) throws {
+        try validate()
+        guard let index = activities.firstIndex(where: { $0.id == id }) else {
+            throw SchoolStateError.unknownActivity(id)
+        }
+        activities.remove(at: index)
+        try validate()
     }
 }
 

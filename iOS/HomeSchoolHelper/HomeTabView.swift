@@ -758,6 +758,8 @@ struct PlanView: View {
     @EnvironmentObject private var store: HomeschoolStore
     @State private var studentID: UUID?
     @State private var showBuilder = false
+    @State private var editingCourse: Course?
+    @State private var courseToDelete: Course?
 
     private var studentCourses: [Course] {
         if let studentID {
@@ -812,6 +814,27 @@ struct PlanView: View {
             .sheet(item: $selectedCourseForRoadmap) { course in
                 CourseRoadmapDetailView(course: course, studentID: studentID)
             }
+            .sheet(item: $editingCourse) { course in
+                EditCourseView(course: course)
+            }
+            .confirmationDialog(
+                "Delete Subject?",
+                isPresented: Binding(
+                    get: { courseToDelete != nil },
+                    set: { if !$0 { courseToDelete = nil } }
+                ),
+                presenting: courseToDelete
+            ) { course in
+                Button("Delete \(course.title)", role: .destructive) {
+                    _ = store.deleteCourse(id: course.id)
+                }
+                .accessibilityIdentifier("confirmDeleteCourse")
+                Button("Cancel", role: .cancel) {
+                    courseToDelete = nil
+                }
+            } message: { course in
+                Text("Deleting \(course.title) will permanently remove this course, all of its lessons, and all associated student assignments.")
+            }
         }
     }
 
@@ -859,6 +882,35 @@ struct PlanView: View {
             ForEach(studentCourses) { course in
                 CourseRowView(course: course, studentID: studentID) {
                     selectedCourseForRoadmap = course
+                }
+                .contentShape(Rectangle())
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button(role: .destructive) {
+                        courseToDelete = course
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                    .accessibilityIdentifier("deleteCourse-\(course.title)")
+
+                    Button {
+                        editingCourse = course
+                    } label: {
+                        Label("Edit", systemImage: "pencil")
+                    }
+                    .tint(Sage.accent)
+                    .accessibilityIdentifier("editCourse-\(course.title)")
+                }
+                .contextMenu {
+                    Button {
+                        editingCourse = course
+                    } label: {
+                        Label("Edit Subject Title", systemImage: "pencil")
+                    }
+                    Button(role: .destructive) {
+                        courseToDelete = course
+                    } label: {
+                        Label("Delete Subject", systemImage: "trash")
+                    }
                 }
             }
         }
@@ -992,6 +1044,16 @@ private struct CourseRoadmapDetailView: View {
     let course: Course
     let studentID: UUID?
 
+    @State private var editingCourse = false
+    @State private var showDeleteCourse = false
+    @State private var addingLesson = false
+    @State private var editingLesson: Lesson?
+    @State private var lessonToDelete: Lesson?
+
+    private var currentCourse: Course {
+        store.course(for: course.id) ?? course
+    }
+
     private var lessons: [Lesson] {
         store.state.lessons.filter { $0.courseID == course.id }
             .sorted { $0.sequence < $1.sequence }
@@ -1015,7 +1077,7 @@ private struct CourseRoadmapDetailView: View {
                         Text("CURRICULUM ROADMAP")
                             .font(.caption.weight(.bold))
                             .foregroundStyle(Sage.accent)
-                        Text(course.title)
+                        Text(currentCourse.title)
                             .font(.title.weight(.bold))
                         Text("\(completedLessonIDs.count) of \(lessons.count) lessons completed")
                             .font(.subheadline.weight(.semibold))
@@ -1064,7 +1126,7 @@ private struct CourseRoadmapDetailView: View {
 
                                 VStack(alignment: .leading, spacing: 6) {
                                     HStack {
-                                        Text("Lesson \(lesson.sequence + 1)")
+                                        Text("Lesson \(lesson.sequence)")
                                             .font(.caption.weight(.bold))
                                             .foregroundStyle(Sage.accent)
                                         Spacer()
@@ -1077,6 +1139,25 @@ private struct CourseRoadmapDetailView: View {
                                                 .font(.caption2.weight(.bold))
                                                 .foregroundStyle(Color.orange)
                                         }
+
+                                        Menu {
+                                            Button {
+                                                editingLesson = lesson
+                                            } label: {
+                                                Label("Edit Title", systemImage: "pencil")
+                                            }
+                                            Button(role: .destructive) {
+                                                lessonToDelete = lesson
+                                            } label: {
+                                                Label("Delete Lesson", systemImage: "trash")
+                                            }
+                                        } label: {
+                                            Image(systemName: "ellipsis")
+                                                .font(.caption.weight(.bold))
+                                                .foregroundStyle(.secondary)
+                                                .padding(.horizontal, 4)
+                                        }
+                                        .accessibilityIdentifier("lessonOptions-\(lesson.sequence)")
                                     }
 
                                     Text(lesson.title)
@@ -1092,6 +1173,18 @@ private struct CourseRoadmapDetailView: View {
                                         .stroke(isNext ? Sage.accent.opacity(0.6) : Color.secondary.opacity(0.12), lineWidth: isNext ? 1.5 : 1)
                                 )
                                 .padding(.bottom, 8)
+                                .contextMenu {
+                                    Button {
+                                        editingLesson = lesson
+                                    } label: {
+                                        Label("Edit Lesson Title", systemImage: "pencil")
+                                    }
+                                    Button(role: .destructive) {
+                                        lessonToDelete = lesson
+                                    } label: {
+                                        Label("Delete Lesson", systemImage: "trash")
+                                    }
+                                }
                             }
                         }
                     }
@@ -1102,8 +1195,183 @@ private struct CourseRoadmapDetailView: View {
             .navigationTitle("Course Roadmap")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Button {
+                            addingLesson = true
+                        } label: {
+                            Label("Add Lesson", systemImage: "plus")
+                        }
+                        .accessibilityIdentifier("roadmapAddLesson")
+
+                        Button {
+                            editingCourse = true
+                        } label: {
+                            Label("Edit Subject Title", systemImage: "pencil")
+                        }
+                        .accessibilityIdentifier("roadmapEditSubject")
+
+                        Divider()
+
+                        Button(role: .destructive) {
+                            showDeleteCourse = true
+                        } label: {
+                            Label("Delete Subject", systemImage: "trash")
+                        }
+                        .accessibilityIdentifier("roadmapDeleteSubject")
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                    .accessibilityIdentifier("courseOptionsMenu")
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done", action: dismiss.callAsFunction)
+                }
+            }
+            .sheet(isPresented: $addingLesson) {
+                AddSingleLessonView(courseID: course.id)
+            }
+            .sheet(isPresented: $editingCourse) {
+                EditCourseView(course: currentCourse)
+            }
+            .sheet(item: $editingLesson) { lesson in
+                EditLessonView(lesson: lesson)
+            }
+            .confirmationDialog(
+                "Delete Lesson?",
+                isPresented: Binding(
+                    get: { lessonToDelete != nil },
+                    set: { if !$0 { lessonToDelete = nil } }
+                ),
+                presenting: lessonToDelete
+            ) { lesson in
+                Button("Delete \(lesson.title)", role: .destructive) {
+                    _ = store.deleteLesson(id: lesson.id)
+                }
+                .accessibilityIdentifier("confirmDeleteLesson")
+                Button("Cancel", role: .cancel) {
+                    lessonToDelete = nil
+                }
+            } message: { lesson in
+                Text("Deleting \"\(lesson.title)\" will permanently remove this lesson and all associated student assignments.")
+            }
+            .confirmationDialog("Delete Subject?", isPresented: $showDeleteCourse) {
+                Button("Delete \(currentCourse.title)", role: .destructive) {
+                    _ = store.deleteCourse(id: currentCourse.id)
+                    dismiss()
+                }
+                .accessibilityIdentifier("confirmDeleteCourseInRoadmap")
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Deleting \(currentCourse.title) will permanently remove this subject, its lessons, and all student assignments.")
+            }
+        }
+    }
+}
+
+private struct EditCourseView: View {
+    @EnvironmentObject private var store: HomeschoolStore
+    @Environment(\.dismiss) private var dismiss
+    let course: Course
+    @State private var title: String
+
+    init(course: Course) {
+        self.course = course
+        _title = State(initialValue: course.title)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if store.presentedError != nil {
+                    Section { SaveErrorBanner() }
+                }
+                Section("Subject Title") {
+                    TextField("Course title", text: $title)
+                        .accessibilityIdentifier("editCourseTitle")
+                }
+            }
+            .navigationTitle("Edit Subject")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: dismiss.callAsFunction) }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        if store.updateCourse(id: course.id, title: title) {
+                            dismiss()
+                        }
+                    }
+                    .accessibilityIdentifier("saveEditCourse")
+                }
+            }
+        }
+    }
+}
+
+private struct EditLessonView: View {
+    @EnvironmentObject private var store: HomeschoolStore
+    @Environment(\.dismiss) private var dismiss
+    let lesson: Lesson
+    @State private var title: String
+
+    init(lesson: Lesson) {
+        self.lesson = lesson
+        _title = State(initialValue: lesson.title)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if store.presentedError != nil {
+                    Section { SaveErrorBanner() }
+                }
+                Section("Lesson Details") {
+                    TextField("Lesson title", text: $title)
+                        .accessibilityIdentifier("editLessonTitle")
+                }
+            }
+            .navigationTitle("Edit Lesson")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: dismiss.callAsFunction) }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        if store.updateLesson(id: lesson.id, title: title) {
+                            dismiss()
+                        }
+                    }
+                    .accessibilityIdentifier("saveEditLesson")
+                }
+            }
+        }
+    }
+}
+
+private struct AddSingleLessonView: View {
+    @EnvironmentObject private var store: HomeschoolStore
+    @Environment(\.dismiss) private var dismiss
+    let courseID: UUID
+    @State private var title = ""
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if store.presentedError != nil {
+                    Section { SaveErrorBanner() }
+                }
+                Section("New Lesson") {
+                    TextField("Lesson title", text: $title)
+                        .accessibilityIdentifier("newLessonTitle")
+                }
+            }
+            .navigationTitle("Add Lesson")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: dismiss.callAsFunction) }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add") {
+                        if store.addLesson(to: courseID, title: title) {
+                            dismiss()
+                        }
+                    }
+                    .accessibilityIdentifier("saveNewLesson")
                 }
             }
         }
@@ -1199,6 +1467,7 @@ struct RecordsView: View {
     @EnvironmentObject private var store: HomeschoolStore
     @State private var showAttendance = false
     @State private var showActivity = false
+    @State private var editingActivity: LearningActivity?
 
     private var totalMinutes: Int { store.state.attendance.reduce(0) { $0 + $1.minutes } }
     private var activityMinutes: Int { store.state.activities.reduce(0) { $0 + $1.minutes } }
@@ -1322,6 +1591,35 @@ struct RecordsView: View {
                             }
                         }
                         .padding(.vertical, 4)
+                        .contentShape(Rectangle())
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                _ = store.deleteActivity(id: activity.id)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                            .accessibilityIdentifier("deleteActivity-\(activity.title)")
+
+                            Button {
+                                editingActivity = activity
+                            } label: {
+                                Label("Edit", systemImage: "pencil")
+                            }
+                            .tint(Sage.accent)
+                            .accessibilityIdentifier("editActivity-\(activity.title)")
+                        }
+                        .contextMenu {
+                            Button {
+                                editingActivity = activity
+                            } label: {
+                                Label("Edit Activity", systemImage: "pencil")
+                            }
+                            Button(role: .destructive) {
+                                _ = store.deleteActivity(id: activity.id)
+                            } label: {
+                                Label("Delete Activity", systemImage: "trash")
+                            }
+                        }
                     }
                 }
             }
@@ -1329,6 +1627,9 @@ struct RecordsView: View {
             .toolbar { SaveStatusToolbar() }
             .sheet(isPresented: $showAttendance) { AttendanceView() }
             .sheet(isPresented: $showActivity) { ActivityLogView() }
+            .sheet(item: $editingActivity) { activity in
+                EditActivityView(activity: activity)
+            }
         }
     }
 
@@ -1350,6 +1651,7 @@ private struct AttendanceView: View {
     @State private var day = Date()
     @State private var studentID: UUID?
     @State private var minutes = 180
+    @State private var editingAttendance: AttendanceEntry?
 
     private var entries: [AttendanceEntry] { store.state.attendance.sorted { $0.day > $1.day } }
     private var totalMinutes: Int { store.state.attendance.reduce(0) { $0 + $1.minutes } }
@@ -1396,11 +1698,42 @@ private struct AttendanceView: View {
                         LabeledContent("\(learnerName) · \(SchoolDate.short(entry.day))", value: Hours(minutes: entry.minutes))
                             .accessibilityElement(children: .combine)
                             .accessibilityIdentifier("attendanceEntry-\(learnerName)-\(entry.day)")
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    _ = store.deleteAttendance(id: entry.id)
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                                .accessibilityIdentifier("deleteAttendance-\(entry.id.uuidString)")
+
+                                Button {
+                                    editingAttendance = entry
+                                } label: {
+                                    Label("Edit", systemImage: "pencil")
+                                }
+                                .tint(Sage.accent)
+                                .accessibilityIdentifier("editAttendance-\(entry.id.uuidString)")
+                            }
+                            .contextMenu {
+                                Button {
+                                    editingAttendance = entry
+                                } label: {
+                                    Label("Edit Minutes", systemImage: "pencil")
+                                }
+                                Button(role: .destructive) {
+                                    _ = store.deleteAttendance(id: entry.id)
+                                } label: {
+                                    Label("Delete Attendance", systemImage: "trash")
+                                }
+                            }
                     }
                 }
             }
             .navigationTitle("Attendance & Hours")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done", action: dismiss.callAsFunction) } }
+            .sheet(item: $editingAttendance) { entry in
+                EditAttendanceView(entry: entry)
+            }
             .onChange(of: studentID) { prefillMinutes() }
             .onChange(of: day) { prefillMinutes() }
         }
@@ -1415,6 +1748,93 @@ private struct AttendanceView: View {
             return
         }
         minutes = entry.minutes
+    }
+}
+
+private struct EditAttendanceView: View {
+    @EnvironmentObject private var store: HomeschoolStore
+    @Environment(\.dismiss) private var dismiss
+    let entry: AttendanceEntry
+    @State private var minutes: Int
+
+    init(entry: AttendanceEntry) {
+        self.entry = entry
+        _minutes = State(initialValue: entry.minutes)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if store.presentedError != nil {
+                    Section { SaveErrorBanner() }
+                }
+                let learnerName = store.student(for: entry.studentID)?.name ?? "Learner"
+                Section("\(learnerName) · \(SchoolDate.short(entry.day))") {
+                    TextField("Instructional minutes", value: $minutes, format: .number)
+                        .keyboardType(.numberPad)
+                        .accessibilityIdentifier("editAttendanceMinutes")
+                }
+            }
+            .navigationTitle("Edit Attendance")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: dismiss.callAsFunction) }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        if store.updateAttendance(id: entry.id, minutes: minutes) {
+                            dismiss()
+                        }
+                    }
+                    .disabled(!(1...1440).contains(minutes))
+                    .accessibilityIdentifier("saveEditAttendance")
+                }
+            }
+        }
+    }
+}
+
+private struct EditActivityView: View {
+    @EnvironmentObject private var store: HomeschoolStore
+    @Environment(\.dismiss) private var dismiss
+    let activity: LearningActivity
+    @State private var title: String
+    @State private var day: Date
+    @State private var minutes: Int
+
+    init(activity: LearningActivity) {
+        self.activity = activity
+        _title = State(initialValue: activity.title)
+        _day = State(initialValue: SchoolDate.date(activity.day) ?? Date())
+        _minutes = State(initialValue: activity.minutes)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if store.presentedError != nil {
+                    Section { SaveErrorBanner() }
+                }
+                Section("Activity Details") {
+                    TextField("What did you learn?", text: $title)
+                        .accessibilityIdentifier("editActivityTitle")
+                    DatePicker("Day", selection: $day, displayedComponents: .date)
+                        .accessibilityIdentifier("editActivityDay")
+                    Stepper("Minutes: \(minutes)", value: $minutes, in: 0...1440)
+                        .accessibilityIdentifier("editActivityMinutes")
+                }
+            }
+            .navigationTitle("Edit Activity")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: dismiss.callAsFunction) }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        if store.updateActivity(id: activity.id, title: title, day: SchoolDate.string(day), minutes: minutes) {
+                            dismiss()
+                        }
+                    }
+                    .accessibilityIdentifier("saveEditActivity")
+                }
+            }
+        }
     }
 }
 
@@ -1477,6 +1897,8 @@ struct FamilyView: View {
     @State private var showAccount = false
     @EnvironmentObject private var store: HomeschoolStore
     @State private var showAddStudent = false
+    @State private var editingStudent: Student?
+    @State private var studentToDelete: Student?
 
     var body: some View {
         NavigationStack {
@@ -1533,6 +1955,35 @@ struct FamilyView: View {
                                 Spacer()
                             }
                             .padding(.vertical, 4)
+                            .contentShape(Rectangle())
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    studentToDelete = student
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                                .accessibilityIdentifier("deleteStudent-\(student.name)")
+
+                                Button {
+                                    editingStudent = student
+                                } label: {
+                                    Label("Edit", systemImage: "pencil")
+                                }
+                                .tint(Sage.accent)
+                                .accessibilityIdentifier("editStudent-\(student.name)")
+                            }
+                            .contextMenu {
+                                Button {
+                                    editingStudent = student
+                                } label: {
+                                    Label("Edit Learner", systemImage: "pencil")
+                                }
+                                Button(role: .destructive) {
+                                    studentToDelete = student
+                                } label: {
+                                    Label("Delete Learner", systemImage: "trash")
+                                }
+                            }
                         }
                     }
 
@@ -1566,6 +2017,67 @@ struct FamilyView: View {
             }
             .toolbar { SaveStatusToolbar() }
             .sheet(isPresented: $showAddStudent) { AddStudentView() }
+            .sheet(item: $editingStudent) { student in
+                EditStudentView(student: student)
+            }
+            .confirmationDialog(
+                "Delete Learner?",
+                isPresented: Binding(
+                    get: { studentToDelete != nil },
+                    set: { if !$0 { studentToDelete = nil } }
+                ),
+                presenting: studentToDelete
+            ) { student in
+                Button("Delete \(student.name)", role: .destructive) {
+                    _ = store.deleteStudent(id: student.id)
+                }
+                .accessibilityIdentifier("confirmDeleteStudent")
+                Button("Cancel", role: .cancel) {
+                    studentToDelete = nil
+                }
+            } message: { student in
+                Text("Deleting \(student.name) will permanently remove all of their scheduled assignments, attendance records, and logged activities.")
+            }
+        }
+    }
+}
+
+private struct EditStudentView: View {
+    @EnvironmentObject private var store: HomeschoolStore
+    @Environment(\.dismiss) private var dismiss
+    let student: Student
+    @State private var name: String
+    @State private var gradeLevel: String
+
+    init(student: Student) {
+        self.student = student
+        _name = State(initialValue: student.name)
+        _gradeLevel = State(initialValue: student.gradeLevel)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if store.presentedError != nil {
+                    Section { SaveErrorBanner() }
+                }
+                Section("Learner details") {
+                    TextField("Name", text: $name).accessibilityIdentifier("editStudentName")
+                    TextField("Grade level", text: $gradeLevel).accessibilityIdentifier("editStudentGrade")
+                }
+            }
+            .navigationTitle("Edit Learner")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: dismiss.callAsFunction) }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        if store.updateStudent(id: student.id, name: name, gradeLevel: gradeLevel) {
+                            dismiss()
+                        }
+                    }
+                    .accessibilityIdentifier("saveEditStudent")
+                }
+            }
         }
     }
 }

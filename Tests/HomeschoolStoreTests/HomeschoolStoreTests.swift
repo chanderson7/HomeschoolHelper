@@ -168,6 +168,101 @@ final class HomeschoolStoreTests: XCTestCase {
 
         XCTAssertEqual(result, ["2024-01-10", "2024-01-10"])
     }
+
+    func testStudentAndCourseCRUDInStore() async {
+        let repository = InMemorySchoolRepository(state: SchoolState())
+
+        await MainActor.run {
+            let store = HomeschoolStore(repository: repository)
+            _ = store.addStudent(name: "Ada", gradeLevel: "4")
+            let student = store.state.students[0]
+
+            // Update student
+            let updated = store.updateStudent(id: student.id, name: "Ada Lovelace", gradeLevel: "5")
+            XCTAssertTrue(updated)
+            XCTAssertEqual(store.student(for: student.id)?.name, "Ada Lovelace")
+            XCTAssertEqual(store.student(for: student.id)?.gradeLevel, "5")
+
+            // Add and Update course
+            _ = store.addCourse(title: "CS", studentIDs: [student.id], lessonTitles: ["Intro"], startDay: nil, weekdays: [2])
+            let course = store.state.courses[0]
+            let courseUpdated = store.updateCourse(id: course.id, title: "Computer Science")
+            XCTAssertTrue(courseUpdated)
+            XCTAssertEqual(store.course(for: course.id)?.title, "Computer Science")
+
+            // Delete course
+            let courseDeleted = store.deleteCourse(id: course.id)
+            XCTAssertTrue(courseDeleted)
+            XCTAssertTrue(store.state.courses.isEmpty)
+            XCTAssertTrue(store.state.lessons.isEmpty)
+            XCTAssertTrue(store.state.assignments.isEmpty)
+
+            // Delete student
+            let studentDeleted = store.deleteStudent(id: student.id)
+            XCTAssertTrue(studentDeleted)
+            XCTAssertTrue(store.state.students.isEmpty)
+        }
+    }
+
+    func testLessonAttendanceAndActivityCRUDInStore() async {
+        let repository = InMemorySchoolRepository(state: SchoolState())
+
+        await MainActor.run {
+            let store = HomeschoolStore(repository: repository)
+            _ = store.addStudent(name: "Ben", gradeLevel: "2")
+            let student = store.state.students[0]
+            _ = store.addCourse(title: "Art", studentIDs: [student.id], lessonTitles: ["Sketching"], startDay: nil, weekdays: [2])
+            let course = store.state.courses[0]
+            let lesson1 = store.state.lessons[0]
+
+            // Add lesson
+            let addedLesson = store.addLesson(to: course.id, title: "Painting")
+            XCTAssertTrue(addedLesson)
+            XCTAssertEqual(store.state.lessons.count, 2)
+            let lesson2 = store.state.lessons.first { $0.title == "Painting" }!
+
+            // Update lesson
+            let updatedLesson = store.updateLesson(id: lesson2.id, title: "Watercolors")
+            XCTAssertTrue(updatedLesson)
+            XCTAssertEqual(store.lesson(for: lesson2.id)?.title, "Watercolors")
+
+            // Reorder lessons
+            let reordered = store.reorderLessons(courseID: course.id, lessonIDsInOrder: [lesson2.id, lesson1.id])
+            XCTAssertTrue(reordered)
+            XCTAssertEqual(store.lesson(for: lesson2.id)?.sequence, 1)
+            XCTAssertEqual(store.lesson(for: lesson1.id)?.sequence, 2)
+
+            // Delete lesson
+            let deletedLesson = store.deleteLesson(id: lesson1.id)
+            XCTAssertTrue(deletedLesson)
+            XCTAssertEqual(store.state.lessons.count, 1)
+            XCTAssertEqual(store.lesson(for: lesson2.id)?.sequence, 1)
+
+            // Attendance CRUD
+            _ = store.confirmAttendance(studentID: student.id, day: "2024-05-15", minutes: 60)
+            let attendance = store.attendanceEntry(for: student.id, day: "2024-05-15")!
+            let updatedAtt = store.updateAttendance(id: attendance.id, day: "2024-05-16", minutes: 90)
+            XCTAssertTrue(updatedAtt)
+            XCTAssertEqual(store.attendance(for: attendance.id)?.day, "2024-05-16")
+            XCTAssertEqual(store.attendance(for: attendance.id)?.minutes, 90)
+
+            let deletedAtt = store.deleteAttendance(id: attendance.id)
+            XCTAssertTrue(deletedAtt)
+            XCTAssertNil(store.attendance(for: attendance.id))
+
+            // Activity CRUD
+            _ = store.logActivity(title: "Drawing", studentIDs: [student.id], day: "2024-05-16", minutes: 30)
+            let activity = store.state.activities[0]
+            let updatedAct = store.updateActivity(id: activity.id, title: "Outdoor Sketching", day: "2024-05-17", minutes: 45)
+            XCTAssertTrue(updatedAct)
+            XCTAssertEqual(store.activity(for: activity.id)?.title, "Outdoor Sketching")
+            XCTAssertEqual(store.activity(for: activity.id)?.minutes, 45)
+
+            let deletedAct = store.deleteActivity(id: activity.id)
+            XCTAssertTrue(deletedAct)
+            XCTAssertNil(store.activity(for: activity.id))
+        }
+    }
 }
 
 private enum FakeRepositoryError: LocalizedError, Sendable {
