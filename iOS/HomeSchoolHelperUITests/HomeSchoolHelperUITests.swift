@@ -36,6 +36,8 @@ final class HomeSchoolHelperUITests: XCTestCase {
         enter("long-password", into: app.secureTextFields["loginPasswordConfirmation"])
         XCTAssertTrue(app.buttons["loginSubmit"].isEnabled)
         XCTAssertFalse(app.tabBars.buttons["Records"].exists)
+        XCTAssertTrue(app.buttons["loginTermsLink"].exists)
+        XCTAssertTrue(app.buttons["loginPrivacyLink"].exists)
         attachScreenshot(named: "signup-validation")
     }
 
@@ -100,6 +102,7 @@ final class HomeSchoolHelperUITests: XCTestCase {
         XCTAssertTrue(app.tabBars.buttons["Plan"].exists)
         XCTAssertTrue(app.tabBars.buttons["Records"].exists)
         XCTAssertTrue(app.tabBars.buttons["Family"].exists)
+        XCTAssertTrue(app.tabBars.buttons["Settings"].exists)
         try app.performAccessibilityAudit(for: .sufficientElementDescription)
         attachScreenshot(named: "large-text-dark-today")
 
@@ -113,6 +116,32 @@ final class HomeSchoolHelperUITests: XCTestCase {
         reveal(app.buttons["addStudent"])
         addLearner(name: "Rae", grade: "5")
         reveal(app.staticTexts["Rae"], direction: .down)
+
+        app.tabBars.buttons["Settings"].tap()
+        attachScreenshot(named: "large-text-dark-settings")
+    }
+
+    func testSettingsPageAndLegalDocuments() throws {
+        XCTAssertTrue(app.tabBars.buttons["Settings"].waitForExistence(timeout: 2))
+        app.tabBars.buttons["Settings"].tap()
+
+        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 2))
+
+        // Open Privacy Policy
+        tap("openPrivacyPolicy", in: app.buttons)
+        XCTAssertTrue(app.staticTexts["Privacy Policy"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["1. Local-First Data Sovereignty"].exists)
+        attachScreenshot(named: "privacy-policy-sheet")
+        tap("dismissLegalDocument", in: app.buttons)
+
+        // Open Terms of Service
+        tap("openTermsOfService", in: app.buttons)
+        XCTAssertTrue(app.staticTexts["Terms of Service"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["1. Acceptance of Terms"].exists)
+        attachScreenshot(named: "terms-of-service-sheet")
+        tap("dismissLegalDocument", in: app.buttons)
+
+        attachScreenshot(named: "settings-page")
     }
 
     private func addLearner(name: String, grade: String) {

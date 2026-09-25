@@ -5,6 +5,7 @@ struct LoginView: View {
     @EnvironmentObject private var auth: AuthStore
     var recoveringPassword = false
     @State private var creatingAccount = false
+    @State private var selectedLegalDocument: LegalDocumentType?
     @State private var email = ""
     @State private var password = ""
     @State private var confirmation = ""
@@ -106,12 +107,32 @@ struct LoginView: View {
                     } else {
                         Button("Cancel and sign out") { Task { await auth.signOut() } }
                     }
-                    Text("Your family’s records are available only after you sign in.")
-                        .font(.footnote).foregroundStyle(.secondary)
+                    VStack(spacing: 8) {
+                        Text("Your family’s records are available only after you sign in.")
+                            .font(.footnote).foregroundStyle(.secondary)
+
+                        HStack(spacing: 6) {
+                            Button("Terms of Service") {
+                                selectedLegalDocument = .termsOfService
+                            }
+                            .accessibilityIdentifier("loginTermsLink")
+
+                            Text("•").foregroundStyle(.secondary)
+
+                            Button("Privacy Policy") {
+                                selectedLegalDocument = .privacyPolicy
+                            }
+                            .accessibilityIdentifier("loginPrivacyLink")
+                        }
+                        .font(.caption)
+                    }
                 }
                 .padding(28).frame(maxWidth: 520).frame(maxWidth: .infinity)
             }
             .background(Sage.background).scrollDismissesKeyboard(.interactively)
+            .sheet(item: $selectedLegalDocument) { docType in
+                LegalDocumentView(documentType: docType)
+            }
             .accessibilityIdentifier("loginScreen")
         }
     }

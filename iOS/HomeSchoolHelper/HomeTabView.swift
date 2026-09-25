@@ -36,6 +36,9 @@ struct HomeTabView: View {
                     FamilyView()
                         .tabItem { Label("Family", systemImage: "person.2") }
                         .accessibilityIdentifier("tabFamily")
+                    SettingsView()
+                        .tabItem { Label("Settings", systemImage: "gearshape") }
+                        .accessibilityIdentifier("tabSettings")
                 }
             }
         }
@@ -1543,6 +1546,12 @@ struct FamilyView: View {
                         Button("Account & cloud backups") { showAccount = true }
                             .accessibilityIdentifier("openAccount")
                     }
+                    NavigationLink {
+                        SettingsView()
+                    } label: {
+                        Label("App Settings & Legal", systemImage: "gearshape")
+                    }
+                    .accessibilityIdentifier("openSettingsFromFamily")
                     Label("Saved on this device", systemImage: "lock.shield.fill")
                         .font(.headline)
                         .foregroundStyle(Sage.accent)
