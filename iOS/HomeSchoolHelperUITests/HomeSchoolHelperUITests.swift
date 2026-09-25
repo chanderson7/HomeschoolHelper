@@ -62,7 +62,7 @@ final class HomeSchoolHelperUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["1 learner-days"].exists)
         tap("openAttendance", in: app.buttons)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@", "2h 30m")).firstMatch.waitForExistence(timeout: 2))
-        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Ada ·")).count, 1)
+        XCTAssertEqual(attendanceEntries(for: "Ada").count, 1)
         tap("Done", in: app.buttons)
 
         logRetrospectiveActivityForBen()
@@ -80,7 +80,7 @@ final class HomeSchoolHelperUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["1 learner-days"].exists)
         tap("openAttendance", in: app.buttons)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@", "2h 30m")).firstMatch.waitForExistence(timeout: 2))
-        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Ada ·")).count, 1)
+        XCTAssertEqual(attendanceEntries(for: "Ada").count, 1)
         tap("Done", in: app.buttons)
         app.tabBars.buttons["Today"].tap()
         reveal(app.buttons["assignment-Ada-Lesson Two"])
@@ -152,6 +152,12 @@ final class HomeSchoolHelperUITests: XCTestCase {
         enter(minutes, into: app.textFields["attendanceMinutes"])
         tap("confirmAttendance", in: app.buttons)
         tap("Done", in: app.buttons)
+    }
+
+    private func attendanceEntries(for learner: String) -> XCUIElementQuery {
+        app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "attendanceEntry-\(learner)-")
+        )
     }
 
     private func logRetrospectiveActivityForBen() {

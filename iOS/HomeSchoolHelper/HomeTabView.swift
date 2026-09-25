@@ -1388,7 +1388,10 @@ private struct AttendanceView: View {
                 Section("Recorded days") {
                     if entries.isEmpty { Text("No attendance confirmed yet.").foregroundStyle(.secondary) }
                     ForEach(entries) { entry in
-                        LabeledContent("\(store.student(for: entry.studentID)?.name ?? "Unknown learner") · \(SchoolDate.short(entry.day))", value: Hours(minutes: entry.minutes))
+                        let learnerName = store.student(for: entry.studentID)?.name ?? "Unknown learner"
+                        LabeledContent("\(learnerName) · \(SchoolDate.short(entry.day))", value: Hours(minutes: entry.minutes))
+                            .accessibilityElement(children: .combine)
+                            .accessibilityIdentifier("attendanceEntry-\(learnerName)-\(entry.day)")
                     }
                 }
             }
