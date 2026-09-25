@@ -132,9 +132,10 @@ final class HomeSchoolHelperUITests: XCTestCase {
         XCTAssertTrue(lessons.waitForExistence(timeout: 2))
         lessons.tap()
         lessons.typeText("Lesson One\nLesson Two")
+        app.navigationBars["Build Sequence"].tap()
         app.swipeUp()
-        setSwitch("Ada", enabled: true)
-        setSwitch("Ben", enabled: true)
+        setSwitch("courseStudent-Ada", enabled: true)
+        setSwitch("courseStudent-Ben", enabled: true)
         setSwitch("datedLessonSchedule", enabled: false)
         tap("saveCourse", in: app.buttons)
         let saved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: app.buttons["saveCourse"])
@@ -165,7 +166,7 @@ final class HomeSchoolHelperUITests: XCTestCase {
         tap("addActivity", in: app.buttons)
         enter("Museum visit", into: app.textFields["activityTitle"])
         selectDate(daysBeforeToday: 7, in: app.datePickers["activityDay"])
-        setSwitch("Ben", enabled: true)
+        setSwitch("activityStudent-Ben", enabled: true)
         tap("saveActivity", in: app.buttons)
     }
 
@@ -213,15 +214,15 @@ final class HomeSchoolHelperUITests: XCTestCase {
     }
 
     private func setSwitch(_ identifier: String, enabled: Bool) {
+        let popoverDismissRegion = app.buttons["PopoverDismissRegion"]
+        if popoverDismissRegion.exists { popoverDismissRegion.tap() }
         let row = app.switches[identifier]
         reveal(row)
-        // SwiftUI exposes a labeled row and a nested UISwitch. Tapping the
-        // row's center can hit inert label space rather than the control.
-        let control = row.switches.firstMatch.exists ? row.switches.firstMatch : row
-        reveal(control)
         let expected = enabled ? "1" : "0"
-        if control.value as? String != expected { control.tap() }
-        let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", expected), object: control)
+        if row.value as? String != expected {
+            row.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        }
+        let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", expected), object: row)
         XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 3), .completed, "Switch \(identifier) did not change")
     }
 

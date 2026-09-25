@@ -1150,6 +1150,7 @@ private struct SequenceBuilderView: View {
                                 }
                             }
                         ))
+                        .accessibilityIdentifier("courseStudent-\(student.name)")
                     }
                 }
                 Section("Schedule") {
@@ -1448,6 +1449,7 @@ private struct ActivityLogView: View {
                                 }
                             }
                         ))
+                        .accessibilityIdentifier("activityStudent-\(student.name)")
                     }
                     Text("One activity record will be created for each selected learner. This does not confirm attendance.")
                         .font(.footnote).foregroundStyle(.secondary)
