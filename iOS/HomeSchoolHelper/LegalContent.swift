@@ -43,9 +43,9 @@ enum LegalDocumentType: String, Identifiable, CaseIterable {
     var externalURL: URL? {
         switch self {
         case .privacyPolicy:
-            return URL(string: "https://homeschoolhelper.app/privacy")
+            return URL(string: "https://homeschoohelp.netlify.app/privacy/")
         case .termsOfService:
-            return URL(string: "https://homeschoolhelper.app/terms")
+            return URL(string: "https://homeschoohelp.netlify.app/")
         case .openSourceLicenses:
             return URL(string: "https://github.com/chanderson7/HomeschoolHelper")
         }

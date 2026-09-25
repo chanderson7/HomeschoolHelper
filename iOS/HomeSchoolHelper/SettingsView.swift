@@ -178,9 +178,35 @@ struct SettingsView: View {
                 Section("About") {
                     LabeledContent("App Version", value: appVersionString)
 
+                    if let websiteURL = URL(string: "https://homeschoohelp.netlify.app/") {
+                        Link(destination: websiteURL) {
+                            HStack {
+                                Label("Website & Preview", systemImage: "safari")
+                                Spacer()
+                                Image(systemName: "arrow.up.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .accessibilityIdentifier("websiteLink")
+                    }
+
+                    if let supportPageURL = URL(string: "https://homeschoohelp.netlify.app/support/") {
+                        Link(destination: supportPageURL) {
+                            HStack {
+                                Label("Online Support & FAQ", systemImage: "questionmark.circle")
+                                Spacer()
+                                Image(systemName: "arrow.up.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .accessibilityIdentifier("onlineSupportLink")
+                    }
+
                     if let supportURL = URL(string: "mailto:support@homeschoolhelper.app?subject=HomeSchoolHelper%20Support") {
                         Link(destination: supportURL) {
-                            Label("Contact Support & Feedback", systemImage: "envelope")
+                            Label("Email Support & Feedback", systemImage: "envelope")
                         }
                         .accessibilityIdentifier("contactSupportLink")
                     }
