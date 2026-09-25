@@ -833,7 +833,151 @@ final class SchoolStateTests: XCTestCase {
         XCTAssertNil(state.assignments[0].notes)
         XCTAssertNil(state.parentPIN)
         XCTAssertNil(state.selectedStateCode)
+        XCTAssertEqual(state.portfolioItems, [])
         XCTAssertNoThrow(try state.validate())
+    }
+
+    func testPortfolioItemCRUDAndValidation() throws {
+        var state = SchoolState()
+        let aliceID = try state.addStudent(name: "Alice", gradeLevel: "5")
+        let courseID = try state.addCourse(title: "Art", studentIDs: [aliceID], lessonTitles: ["Watercolor 101"], startDay: "2026-09-01")
+        let lessonID = state.lessons.first { $0.courseID == courseID }!.id
+        let assignmentID = state.assignments.first { $0.lessonID == lessonID }!.id
+
+        // Add portfolio item
+        let itemID = try state.addPortfolioItem(
+            studentID: aliceID,
+            title: "Watercolor Sunset",
+            day: "2026-09-02",
+            courseID: courseID,
+            assignmentID: assignmentID,
+            imageFileName: "sunset_001.jpg",
+            notes: "Used wet-on-wet technique."
+        )
+
+        XCTAssertEqual(state.portfolioItems.count, 1)
+        XCTAssertEqual(state.portfolioItems[0].id, itemID)
+        XCTAssertEqual(state.portfolioItems[0].title, "Watercolor Sunset")
+        XCTAssertEqual(state.portfolioItems[0].imageFileName, "sunset_001.jpg")
+
+        // Validation - invalid student ID
+        XCTAssertThrowsError(
+            try state.addPortfolioItem(
+                studentID: UUID(),
+                title: "Invalid",
+                day: "2026-09-02",
+                imageFileName: "img.jpg"
+            )
+        )
+
+        // Validation - empty title
+        XCTAssertThrowsError(
+            try state.addPortfolioItem(
+                studentID: aliceID,
+                title: "  ",
+                day: "2026-09-02",
+                imageFileName: "img.jpg"
+            )
+        )
+
+        // Validation - invalid day
+        XCTAssertThrowsError(
+            try state.addPortfolioItem(
+                studentID: aliceID,
+                title: "Test",
+                day: "2026-02-31",
+                imageFileName: "img.jpg"
+            )
+        )
+
+        // Update portfolio item
+        try state.updatePortfolioItem(id: itemID, title: "Watercolor Sunset v2", day: "2026-09-03", notes: "Added white highlights.")
+        XCTAssertEqual(state.portfolioItems[0].title, "Watercolor Sunset v2")
+        XCTAssertEqual(state.portfolioItems[0].day, "2026-09-03")
+        XCTAssertEqual(state.portfolioItems[0].notes, "Added white highlights.")
+
+        // Scoped query
+        let itemsForAlice = state.portfolioItems(for: aliceID, courseID: courseID)
+        XCTAssertEqual(itemsForAlice.count, 1)
+
+        let itemsForUnknownCourse = state.portfolioItems(for: aliceID, courseID: UUID())
+        XCTAssertEqual(itemsForUnknownCourse.count, 0)
+
+        // Delete portfolio item
+        try state.deletePortfolioItem(id: itemID)
+        XCTAssertEqual(state.portfolioItems.count, 0)
+    }
+
+    func testStudentDeletionCascadesToPortfolioItems() throws {
+        var state = SchoolState()
+        let aliceID = try state.addStudent(name: "Alice", gradeLevel: "5")
+        let bobID = try state.addStudent(name: "Bob", gradeLevel: "3")
+
+        _ = try state.addPortfolioItem(studentID: aliceID, title: "Alice Artwork", day: "2026-09-05", imageFileName: "alice.jpg")
+        _ = try state.addPortfolioItem(studentID: bobID, title: "Bob Essay", day: "2026-09-05", imageFileName: "bob.jpg")
+
+        XCTAssertEqual(state.portfolioItems.count, 2)
+
+        // Delete Alice -> Alice's portfolio items removed, Bob's remains
+        try state.deleteStudent(id: aliceID)
+        XCTAssertEqual(state.portfolioItems.count, 1)
+        XCTAssertEqual(state.portfolioItems.first?.studentID, bobID)
+    }
+
+    func testCourseAndActivityDeletionNullifiesPortfolioItemReferences() throws {
+        var state = SchoolState()
+        let aliceID = try state.addStudent(name: "Alice", gradeLevel: "5")
+        let courseID = try state.addCourse(title: "Science", studentIDs: [aliceID], lessonTitles: ["Volcano Experiment"], startDay: "2026-09-01")
+        let lessonID = state.lessons.first { $0.courseID == courseID }!.id
+        let assignmentID = state.assignments.first { $0.lessonID == lessonID }!.id
+
+        try state.logActivity(title: "Science Fair", studentIDs: [aliceID], day: "2026-09-10", minutes: 120)
+        let activityID = state.activities.first!.id
+
+        let itemID = try state.addPortfolioItem(
+            studentID: aliceID,
+            title: "Volcano Photo",
+            day: "2026-09-10",
+            courseID: courseID,
+            assignmentID: assignmentID,
+            activityID: activityID,
+            imageFileName: "volcano.jpg"
+        )
+
+        // Delete course -> portfolio item retains student and activity, but courseID and assignmentID are nil
+        try state.deleteCourse(id: courseID)
+        let itemAfterCourseDelete = state.portfolioItems.first { $0.id == itemID }!
+        XCTAssertNil(itemAfterCourseDelete.courseID)
+        XCTAssertNil(itemAfterCourseDelete.assignmentID)
+        XCTAssertEqual(itemAfterCourseDelete.activityID, activityID)
+
+        // Delete activity -> activityID is nullified
+        try state.deleteActivity(id: activityID)
+        let itemAfterActivityDelete = state.portfolioItems.first { $0.id == itemID }!
+        XCTAssertNil(itemAfterActivityDelete.activityID)
+        XCTAssertNoThrow(try state.validate())
+    }
+
+    func testCalendarICSGeneration() throws {
+        var state = SchoolState()
+        let yearID = UUID()
+        let year = AcademicYear(id: yearID, title: "2026-2027", startDay: "2026-08-01", endDay: "2027-06-30", targetDays: 180)
+        state.academicYears.append(year)
+        let term = AcademicTerm(academicYearID: yearID, title: "Fall Semester", startDay: "2026-08-15", endDay: "2026-12-18")
+        state.terms.append(term)
+
+        let aliceID = try state.addStudent(name: "Alice", gradeLevel: "4")
+        let courseID = try state.addCourse(title: "Math", studentIDs: [aliceID], lessonTitles: ["Addition", "Subtraction"], startDay: "2026-09-01", weekdays: [2, 3])
+
+        let ics = HomeschoolCalendarGenerator.generateICS(state: state, studentID: aliceID, academicYear: year)
+
+        XCTAssertTrue(ics.contains("BEGIN:VCALENDAR"))
+        XCTAssertTrue(ics.contains("END:VCALENDAR"))
+        XCTAssertTrue(ics.contains("SUMMARY:Fall Semester"))
+        XCTAssertTrue(ics.contains("SUMMARY:Math: Addition (Alice)"))
+        XCTAssertTrue(ics.contains("DTSTART;VALUE=DATE:20260901"))
+        XCTAssertTrue(ics.contains("DTEND;VALUE=DATE:20260902"))
+        XCTAssertTrue(ics.contains("STATUS:TENTATIVE"))
     }
 }
 

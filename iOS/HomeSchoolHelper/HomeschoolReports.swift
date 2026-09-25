@@ -16,6 +16,7 @@ public enum ReportType: String, CaseIterable, Identifiable {
     case curriculum = "Curriculum Progress Report"
     case chronicle = "Comprehensive Annual Chronicle"
     case transcript = "Official High School Transcript"
+    case calendar = "Calendar Schedule (.ics)"
 
     public var id: String { rawValue }
 
@@ -29,6 +30,8 @@ public enum ReportType: String, CaseIterable, Identifiable {
             return "doc.richtext"
         case .transcript:
             return "graduationcap"
+        case .calendar:
+            return "calendar"
         }
     }
 
@@ -42,6 +45,8 @@ public enum ReportType: String, CaseIterable, Identifiable {
             return "Comprehensive portfolio chronicle combining attendance, curriculum pacing, extracurricular activities, and certification."
         case .transcript:
             return "Official academic high school transcript with Carnegie credit hours, letter grades, cumulative GPA, and parent certification."
+        case .calendar:
+            return "Standard RFC 5545 iCalendar schedule (.ics) of scheduled lessons and academic terms for Apple Calendar, Google Calendar, and Microsoft Outlook."
         }
     }
 }
@@ -49,6 +54,7 @@ public enum ReportType: String, CaseIterable, Identifiable {
 public enum ExportFormat: String, CaseIterable, Identifiable {
     case pdf = "PDF Document"
     case csv = "CSV Spreadsheet"
+    case ics = "iCalendar (.ics)"
 
     public var id: String { rawValue }
 
@@ -56,6 +62,7 @@ public enum ExportFormat: String, CaseIterable, Identifiable {
         switch self {
         case .pdf: return "pdf"
         case .csv: return "csv"
+        case .ics: return "ics"
         }
     }
 
@@ -63,6 +70,11 @@ public enum ExportFormat: String, CaseIterable, Identifiable {
         switch self {
         case .pdf: return .pdf
         case .csv: return .commaSeparatedText
+        case .ics:
+            if let custom = UTType(filenameExtension: "ics") {
+                return custom
+            }
+            return .text
         }
     }
 }
@@ -522,6 +534,21 @@ public enum HomeschoolPDFGenerator {
                     year: year
                 )
                 currentY = drawTranscriptSignatureBlock(
+                    in: context,
+                    currentY: currentY,
+                    checkNewPage: checkNewPage
+                )
+
+            case .calendar:
+                currentY = drawCurriculumSection(
+                    in: context,
+                    currentY: currentY,
+                    checkNewPage: checkNewPage,
+                    state: state,
+                    student: student,
+                    year: year
+                )
+                currentY = drawSignatureBlock(
                     in: context,
                     currentY: currentY,
                     checkNewPage: checkNewPage

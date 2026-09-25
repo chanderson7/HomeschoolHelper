@@ -229,6 +229,40 @@ public struct AcademicTerm: Codable, Equatable, Sendable, Identifiable {
     }
 }
 
+public struct PortfolioItem: Codable, Equatable, Sendable, Identifiable {
+    public var id: UUID
+    public var studentID: UUID
+    public var title: String
+    public var day: String
+    public var courseID: UUID?
+    public var assignmentID: UUID?
+    public var activityID: UUID?
+    public var imageFileName: String
+    public var notes: String?
+
+    public init(
+        id: UUID = UUID(),
+        studentID: UUID,
+        title: String,
+        day: String,
+        courseID: UUID? = nil,
+        assignmentID: UUID? = nil,
+        activityID: UUID? = nil,
+        imageFileName: String,
+        notes: String? = nil
+    ) {
+        self.id = id
+        self.studentID = studentID
+        self.title = title
+        self.day = day
+        self.courseID = courseID
+        self.assignmentID = assignmentID
+        self.activityID = activityID
+        self.imageFileName = imageFileName
+        self.notes = notes
+    }
+}
+
 public struct PacedRescheduleResult: Codable, Equatable, Sendable {
     public let rescheduledCount: Int
     public let affectedCoursesCount: Int
@@ -333,6 +367,7 @@ public enum SchoolStateError: LocalizedError, Equatable, Sendable {
     case unknownActivity(UUID)
     case unknownAcademicYear(UUID)
     case unknownAcademicTerm(UUID)
+    case unknownPortfolioItem(UUID)
     case invalidDate(String)
     case invalidMinutes(Int, allowed: ClosedRange<Int>)
     case duplicateID(String)
@@ -361,6 +396,8 @@ public enum SchoolStateError: LocalizedError, Equatable, Sendable {
             return "That academic year no longer exists. Refresh records and try again."
         case .unknownAcademicTerm:
             return "That term no longer exists. Refresh records and try again."
+        case .unknownPortfolioItem:
+            return "That portfolio work sample no longer exists. Refresh records and try again."
         case .invalidDate(let value):
             return "\"\(value)\" is not a valid Gregorian date. Use YYYY-MM-DD."
         case .invalidMinutes(let minutes, let allowed):
@@ -388,6 +425,7 @@ public struct SchoolState: Codable, Equatable, Sendable {
     public var activeYearID: UUID?
     public var parentPIN: String?
     public var selectedStateCode: String?
+    public var portfolioItems: [PortfolioItem]
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion
@@ -402,6 +440,7 @@ public struct SchoolState: Codable, Equatable, Sendable {
         case activeYearID
         case parentPIN
         case selectedStateCode
+        case portfolioItems
     }
 
     public init(
@@ -416,7 +455,8 @@ public struct SchoolState: Codable, Equatable, Sendable {
         terms: [AcademicTerm] = [],
         activeYearID: UUID? = nil,
         parentPIN: String? = nil,
-        selectedStateCode: String? = nil
+        selectedStateCode: String? = nil,
+        portfolioItems: [PortfolioItem] = []
     ) {
         self.schemaVersion = schemaVersion
         self.students = students
@@ -430,6 +470,7 @@ public struct SchoolState: Codable, Equatable, Sendable {
         self.activeYearID = activeYearID
         self.parentPIN = parentPIN
         self.selectedStateCode = selectedStateCode
+        self.portfolioItems = portfolioItems
     }
 
     public init(from decoder: Decoder) throws {
@@ -446,6 +487,7 @@ public struct SchoolState: Codable, Equatable, Sendable {
         self.activeYearID = try container.decodeIfPresent(UUID.self, forKey: .activeYearID)
         self.parentPIN = try container.decodeIfPresent(String.self, forKey: .parentPIN)
         self.selectedStateCode = try container.decodeIfPresent(String.self, forKey: .selectedStateCode)
+        self.portfolioItems = try container.decodeIfPresent([PortfolioItem].self, forKey: .portfolioItems) ?? []
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -462,6 +504,7 @@ public struct SchoolState: Codable, Equatable, Sendable {
         try container.encodeIfPresent(activeYearID, forKey: .activeYearID)
         try container.encodeIfPresent(parentPIN, forKey: .parentPIN)
         try container.encodeIfPresent(selectedStateCode, forKey: .selectedStateCode)
+        try container.encode(portfolioItems, forKey: .portfolioItems)
     }
 
     public func validate() throws {
@@ -481,6 +524,7 @@ public struct SchoolState: Codable, Equatable, Sendable {
         try validateUniqueIDs(activities.map(\.id), collection: "activities")
         try validateUniqueIDs(academicYears.map(\.id), collection: "academic years")
         try validateUniqueIDs(terms.map(\.id), collection: "terms")
+        try validateUniqueIDs(portfolioItems.map(\.id), collection: "portfolio items")
 
         let studentIDs = Set(students.map(\.id))
         let courseIDs = Set(courses.map(\.id))
@@ -598,6 +642,32 @@ public struct SchoolState: Codable, Equatable, Sendable {
         if let activeYearID {
             guard academicYearIDs.contains(activeYearID) else {
                 throw SchoolStateError.danglingReference("Active academic year refers to a missing year")
+            }
+        }
+
+        let assignmentIDs = Set(assignments.map(\.id))
+        let activityIDs = Set(activities.map(\.id))
+        for item in portfolioItems {
+            guard studentIDs.contains(item.studentID) else {
+                throw SchoolStateError.danglingReference("A portfolio item refers to a missing student")
+            }
+            try validateRequiredText(item.title, field: "Portfolio item title")
+            try validateDay(item.day)
+            try validateRequiredText(item.imageFileName, field: "Portfolio item image")
+            if let courseID = item.courseID {
+                guard courseIDs.contains(courseID) else {
+                    throw SchoolStateError.danglingReference("A portfolio item refers to a missing course")
+                }
+            }
+            if let assignmentID = item.assignmentID {
+                guard assignmentIDs.contains(assignmentID) else {
+                    throw SchoolStateError.danglingReference("A portfolio item refers to a missing assignment")
+                }
+            }
+            if let activityID = item.activityID {
+                guard activityIDs.contains(activityID) else {
+                    throw SchoolStateError.danglingReference("A portfolio item refers to a missing activity")
+                }
             }
         }
     }
@@ -774,6 +844,7 @@ public struct SchoolState: Codable, Equatable, Sendable {
         assignments.removeAll { $0.studentID == id }
         attendance.removeAll { $0.studentID == id }
         activities.removeAll { $0.studentID == id }
+        portfolioItems.removeAll { $0.studentID == id }
         try validate()
     }
 
@@ -794,8 +865,17 @@ public struct SchoolState: Codable, Equatable, Sendable {
         }
         courses.remove(at: index)
         let courseLessonIDs = Set(lessons.filter { $0.courseID == id }.map(\.id))
+        let courseAssignmentIDs = Set(assignments.filter { courseLessonIDs.contains($0.lessonID) }.map(\.id))
         lessons.removeAll { $0.courseID == id }
         assignments.removeAll { courseLessonIDs.contains($0.lessonID) }
+        for i in portfolioItems.indices {
+            if portfolioItems[i].courseID == id {
+                portfolioItems[i].courseID = nil
+            }
+            if let aid = portfolioItems[i].assignmentID, courseAssignmentIDs.contains(aid) {
+                portfolioItems[i].assignmentID = nil
+            }
+        }
         try validate()
     }
 
@@ -815,8 +895,14 @@ public struct SchoolState: Codable, Equatable, Sendable {
             throw SchoolStateError.unknownLesson(id)
         }
         let courseID = lessons[index].courseID
+        let lessonAssignmentIDs = Set(assignments.filter { $0.lessonID == id }.map(\.id))
         lessons.remove(at: index)
         assignments.removeAll { $0.lessonID == id }
+        for i in portfolioItems.indices {
+            if let aid = portfolioItems[i].assignmentID, lessonAssignmentIDs.contains(aid) {
+                portfolioItems[i].assignmentID = nil
+            }
+        }
 
         // Re-index remaining lessons for this course to keep sequences contiguous 1, 2, 3...
         let courseLessons = lessons.filter { $0.courseID == courseID }.sorted { $0.sequence < $1.sequence }
@@ -921,6 +1007,11 @@ public struct SchoolState: Codable, Equatable, Sendable {
             throw SchoolStateError.unknownActivity(id)
         }
         activities.remove(at: index)
+        for i in portfolioItems.indices {
+            if portfolioItems[i].activityID == id {
+                portfolioItems[i].activityID = nil
+            }
+        }
         try validate()
     }
 
@@ -1322,6 +1413,96 @@ public struct SchoolState: Codable, Equatable, Sendable {
             newCompletionDay: maxNewDay
         )
     }
+
+    @discardableResult
+    public mutating func addPortfolioItem(
+        studentID: UUID,
+        title: String,
+        day: String,
+        courseID: UUID? = nil,
+        assignmentID: UUID? = nil,
+        activityID: UUID? = nil,
+        imageFileName: String,
+        notes: String? = nil
+    ) throws -> UUID {
+        try validate()
+        guard students.contains(where: { $0.id == studentID }) else {
+            throw SchoolStateError.unknownStudent(studentID)
+        }
+        let cleanedTitle = try cleanedRequiredText(title, field: "Portfolio item title")
+        try validateDay(day)
+        let cleanedImageFileName = try cleanedRequiredText(imageFileName, field: "Portfolio item image")
+        if let courseID {
+            guard courses.contains(where: { $0.id == courseID }) else {
+                throw SchoolStateError.unknownCourse(courseID)
+            }
+        }
+        if let assignmentID {
+            guard assignments.contains(where: { $0.id == assignmentID }) else {
+                throw SchoolStateError.unknownAssignment(assignmentID)
+            }
+        }
+        if let activityID {
+            guard activities.contains(where: { $0.id == activityID }) else {
+                throw SchoolStateError.unknownActivity(activityID)
+            }
+        }
+        let item = PortfolioItem(
+            studentID: studentID,
+            title: cleanedTitle,
+            day: day,
+            courseID: courseID,
+            assignmentID: assignmentID,
+            activityID: activityID,
+            imageFileName: cleanedImageFileName,
+            notes: notes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? notes?.trimmingCharacters(in: .whitespacesAndNewlines) : nil
+        )
+        portfolioItems.append(item)
+        try validate()
+        return item.id
+    }
+
+    public mutating func updatePortfolioItem(
+        id: UUID,
+        title: String,
+        day: String? = nil,
+        notes: String? = nil
+    ) throws {
+        try validate()
+        guard let index = portfolioItems.firstIndex(where: { $0.id == id }) else {
+            throw SchoolStateError.unknownPortfolioItem(id)
+        }
+        let cleanedTitle = try cleanedRequiredText(title, field: "Portfolio item title")
+        if let day {
+            try validateDay(day)
+            portfolioItems[index].day = day
+        }
+        portfolioItems[index].title = cleanedTitle
+        portfolioItems[index].notes = notes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? notes?.trimmingCharacters(in: .whitespacesAndNewlines) : nil
+        try validate()
+    }
+
+    public mutating func deletePortfolioItem(id: UUID) throws {
+        try validate()
+        guard let index = portfolioItems.firstIndex(where: { $0.id == id }) else {
+            throw SchoolStateError.unknownPortfolioItem(id)
+        }
+        portfolioItems.remove(at: index)
+        try validate()
+    }
+
+    public func portfolioItems(
+        for studentID: UUID? = nil,
+        courseID: UUID? = nil,
+        in year: AcademicYear? = nil
+    ) -> [PortfolioItem] {
+        portfolioItems.filter { item in
+            if let studentID, item.studentID != studentID { return false }
+            if let courseID, item.courseID != courseID { return false }
+            if let year, !year.contains(day: item.day) { return false }
+            return true
+        }.sorted { $0.day > $1.day }
+    }
 }
 
 public enum SchoolDay {
@@ -1369,6 +1550,15 @@ public enum SchoolDay {
         guard let date = calendar.date(from: components) else { return false }
         let normalized = calendar.dateComponents([.year, .month, .day], from: date)
         return normalized.year == year && normalized.month == month && normalized.day == day
+    }
+
+    public static func nextDay(from string: String) -> String? {
+        guard let date = try? date(from: string) else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        guard let next = calendar.date(byAdding: .day, value: 1, to: date) else { return nil }
+        return SchoolDay.string(from: next, calendar: calendar)
     }
 }
 
@@ -1507,3 +1697,102 @@ private func scheduledDaysFrom(startDay: String, count: Int, weekdays: Set<Int>)
     }
     return result
 }
+
+public enum HomeschoolCalendarGenerator {
+    public static func generateICS(
+        state: SchoolState,
+        studentID: UUID? = nil,
+        academicYear: AcademicYear? = nil
+    ) -> String {
+        var lines: [String] = [
+            "BEGIN:VCALENDAR",
+            "VERSION:2.0",
+            "PRODID:-//Homeschool Helper//Homeschool Calendar 1.0//EN",
+            "CALSCALE:GREGORIAN",
+            "METHOD:PUBLISH"
+        ]
+
+        let studentLookup = Dictionary(uniqueKeysWithValues: state.students.map { ($0.id, $0) })
+        let courseLookup = Dictionary(uniqueKeysWithValues: state.courses.map { ($0.id, $0) })
+        let lessonLookup = Dictionary(uniqueKeysWithValues: state.lessons.map { ($0.id, $0) })
+
+        // 1. Academic Terms
+        for term in state.terms {
+            if let academicYear, term.academicYearID != academicYear.id { continue }
+            guard let startDate = icsDate(term.startDay),
+                  let nextEndDate = icsNextDate(term.endDay) else { continue }
+            lines.append("BEGIN:VEVENT")
+            lines.append("UID:term-\(term.id.uuidString)@homeschoolhelper")
+            lines.append("DTSTAMP:\(icsTimestamp())")
+            lines.append("DTSTART;VALUE=DATE:\(startDate)")
+            lines.append("DTEND;VALUE=DATE:\(nextEndDate)")
+            lines.append("SUMMARY:\(escapeICS(term.title))")
+            lines.append("DESCRIPTION:\(escapeICS("Academic Term: \(term.title)"))")
+            lines.append("STATUS:CONFIRMED")
+            lines.append("TRANSP:TRANSPARENT")
+            lines.append("END:VEVENT")
+        }
+
+        // 2. Scheduled Assignments
+        let relevantAssignments = state.assignments.filter { assignment in
+            guard let day = assignment.scheduledDay else { return false }
+            if let studentID, assignment.studentID != studentID { return false }
+            if let academicYear, !academicYear.contains(day: day) { return false }
+            return true
+        }
+
+        for assignment in relevantAssignments {
+            guard let day = assignment.scheduledDay,
+                  let startDate = icsDate(day),
+                  let nextDate = icsNextDate(day),
+                  let lesson = lessonLookup[assignment.lessonID] else { continue }
+
+            let student = studentLookup[assignment.studentID]
+            let course = courseLookup[lesson.courseID]
+            let studentName = student?.name ?? "Student"
+            let courseTitle = course?.title ?? "Course"
+            let summary = "\(courseTitle): \(lesson.title) (\(studentName))"
+            var desc = "Lesson: \(lesson.title)\nCourse: \(courseTitle)\nStudent: \(studentName)\nStatus: \(assignment.status.rawValue.capitalized)"
+            if let grade = assignment.grade {
+                desc += "\nGrade: \(Int(round(grade)))%"
+            }
+
+            lines.append("BEGIN:VEVENT")
+            lines.append("UID:assignment-\(assignment.id.uuidString)@homeschoolhelper")
+            lines.append("DTSTAMP:\(icsTimestamp())")
+            lines.append("DTSTART;VALUE=DATE:\(startDate)")
+            lines.append("DTEND;VALUE=DATE:\(nextDate)")
+            lines.append("SUMMARY:\(escapeICS(summary))")
+            lines.append("DESCRIPTION:\(escapeICS(desc))")
+            lines.append("STATUS:\(assignment.status == .completed ? "CONFIRMED" : "TENTATIVE")")
+            lines.append("END:VEVENT")
+        }
+
+        lines.append("END:VCALENDAR")
+        return lines.joined(separator: "\r\n") + "\r\n"
+    }
+
+    private static func icsDate(_ day: String) -> String? {
+        guard SchoolDay.isValid(day) else { return nil }
+        return day.replacingOccurrences(of: "-", with: "")
+    }
+
+    private static func icsNextDate(_ day: String) -> String? {
+        guard let next = SchoolDay.nextDay(from: day) else { return nil }
+        return icsDate(next)
+    }
+
+    private static func icsTimestamp() -> String {
+        return "20260101T000000Z"
+    }
+
+    private static func escapeICS(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: ";", with: "\\;")
+            .replacingOccurrences(of: ",", with: "\\,")
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "")
+    }
+}
+

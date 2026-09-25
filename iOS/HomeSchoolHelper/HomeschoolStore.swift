@@ -10,12 +10,42 @@ final class HomeschoolStore: ObservableObject {
     @Published private(set) var isSaving = false
     @Published var isStudentModeActive: Bool = false
     @Published var activeStudentModeStudentID: UUID? = nil
+    @Published var dailyReminderEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(dailyReminderEnabled, forKey: "hsh_daily_reminder_enabled")
+            syncDailyReminder()
+        }
+    }
+    @Published var dailyReminderTime: Date {
+        didSet {
+            UserDefaults.standard.set(dailyReminderTime.timeIntervalSince1970, forKey: "hsh_daily_reminder_time")
+            syncDailyReminder()
+        }
+    }
+
+    var onSyncDailyReminder: ((Bool, Date, SchoolState) -> Void)?
+    var onPortfolioItemDeleted: ((String) -> Void)?
 
     private let repository: any SchoolRepository
 
     init(repository: (any SchoolRepository)? = nil) {
         self.repository = repository ?? JSONSchoolRepository(fileURL: Self.defaultFileURL())
+        self.dailyReminderEnabled = UserDefaults.standard.bool(forKey: "hsh_daily_reminder_enabled")
+        let savedTime = UserDefaults.standard.double(forKey: "hsh_daily_reminder_time")
+        if savedTime > 0 {
+            self.dailyReminderTime = Date(timeIntervalSince1970: savedTime)
+        } else {
+            var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+            components.hour = 8
+            components.minute = 0
+            self.dailyReminderTime = Calendar.current.date(from: components) ?? Date()
+        }
         load()
+        syncDailyReminder()
+    }
+
+    func syncDailyReminder() {
+        onSyncDailyReminder?(dailyReminderEnabled, dailyReminderTime, state)
     }
 
     func load() {
@@ -39,6 +69,9 @@ final class HomeschoolStore: ObservableObject {
             try repository.save(copy)
             state = copy
             isSaving = false
+            if dailyReminderEnabled {
+                syncDailyReminder()
+            }
             return true
         } catch {
             presentedError = AppMessage(title: "Couldn’t \(action)", message: error.localizedDescription)
@@ -362,6 +395,63 @@ final class HomeschoolStore: ObservableObject {
         }
     }
 
+    @discardableResult
+    func addPortfolioItem(
+        studentID: UUID,
+        title: String,
+        day: String,
+        courseID: UUID? = nil,
+        assignmentID: UUID? = nil,
+        activityID: UUID? = nil,
+        imageFileName: String,
+        notes: String? = nil
+    ) -> Bool {
+        update("add work sample") { state in
+            _ = try state.addPortfolioItem(
+                studentID: studentID,
+                title: title,
+                day: day,
+                courseID: courseID,
+                assignmentID: assignmentID,
+                activityID: activityID,
+                imageFileName: imageFileName,
+                notes: notes
+            )
+        }
+    }
+
+    @discardableResult
+    func updatePortfolioItem(
+        id: UUID,
+        title: String,
+        day: String? = nil,
+        notes: String? = nil
+    ) -> Bool {
+        update("update work sample") { state in
+            try state.updatePortfolioItem(id: id, title: title, day: day, notes: notes)
+        }
+    }
+
+    @discardableResult
+    func deletePortfolioItem(id: UUID, imageFileName: String? = nil) -> Bool {
+        let success = update("delete work sample") { state in
+            try state.deletePortfolioItem(id: id)
+        }
+        if success, let imageFileName {
+            onPortfolioItemDeleted?(imageFileName)
+        }
+        return success
+    }
+
+    func portfolioItems(
+        for studentID: UUID? = nil,
+        courseID: UUID? = nil,
+        in year: AcademicYear? = nil
+    ) -> [PortfolioItem] {
+        let targetYear = year ?? activeAcademicYear
+        return state.portfolioItems(for: studentID, courseID: courseID, in: targetYear)
+    }
+
     var activeAcademicYear: AcademicYear {
         state.resolvedActiveAcademicYear()
     }
@@ -403,6 +493,7 @@ final class HomeschoolStore: ObservableObject {
     func course(for lesson: Lesson) -> Course? { state.courses.first { $0.id == lesson.courseID } }
     func activity(for id: UUID) -> LearningActivity? { state.activities.first { $0.id == id } }
     func attendance(for id: UUID) -> AttendanceEntry? { state.attendance.first { $0.id == id } }
+    func portfolioItem(for id: UUID) -> PortfolioItem? { state.portfolioItems.first { $0.id == id } }
 
     static func defaultFileURL() -> URL {
         #if DEBUG

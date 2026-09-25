@@ -48,6 +48,27 @@ struct HomeTabView: View {
         .alert(item: $store.presentedError) { message in
             Alert(title: Text(message.title), message: Text(message.message), dismissButton: .default(Text("OK")))
         }
+        .onAppear {
+            setupStoreIntegration()
+        }
+    }
+
+    private func setupStoreIntegration() {
+        store.onSyncDailyReminder = { enabled, time, state in
+            Task {
+                if enabled {
+                    let granted = await NotificationManager.shared.requestAuthorization()
+                    if granted {
+                        await NotificationManager.shared.scheduleDailyMorningDigest(time: time, state: state)
+                    }
+                } else {
+                    NotificationManager.shared.cancelDailyMorningDigest()
+                }
+            }
+        }
+        store.onPortfolioItemDeleted = { fileName in
+            PortfolioStorage.shared.deleteImage(fileName: fileName)
+        }
     }
 }
 
@@ -869,6 +890,7 @@ private struct AssignmentStatusSheet: View {
     @State private var completionDate: Date
     @State private var gradeString: String
     @State private var notes: String
+    @State private var showingAddPortfolioSampleSheet = false
 
     init(assignment: Assignment) {
         self.assignment = assignment
@@ -939,6 +961,23 @@ private struct AssignmentStatusSheet: View {
                         .lineLimit(2...4)
                         .accessibilityIdentifier("assignmentNotesField")
                 }
+
+                Section("Work Portfolio") {
+                    let samples = store.state.portfolioItems.filter { $0.assignmentID == assignment.id }
+                    if !samples.isEmpty {
+                        Text("\(samples.count) work sample\(samples.count == 1 ? "" : "s") attached to this lesson")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    Button {
+                        showingAddPortfolioSampleSheet = true
+                    } label: {
+                        Label(samples.isEmpty ? "Attach Work Sample Photo" : "Attach Another Sample", systemImage: "camera")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Sage.accent)
+                    }
+                    .accessibilityIdentifier("attachWorkSampleButton")
+                }
             }
             .navigationTitle("Update Lesson")
             .toolbar {
@@ -962,6 +1001,18 @@ private struct AssignmentStatusSheet: View {
                     }
                     .accessibilityIdentifier("saveAssignmentStatus")
                 }
+            }
+            .sheet(isPresented: $showingAddPortfolioSampleSheet) {
+                let lesson = store.lesson(for: assignment.lessonID)
+                let course = lesson.flatMap { store.course(for: $0) }
+                let sampleTitle = [course?.title, lesson?.title].compactMap { $0 }.joined(separator: " - ")
+
+                AddPortfolioItemSheet(
+                    initialStudentID: assignment.studentID,
+                    initialCourseID: course?.id,
+                    initialAssignmentID: assignment.id,
+                    initialTitle: sampleTitle.isEmpty ? nil : sampleTitle
+                )
             }
         }
     }
@@ -1766,6 +1817,7 @@ private enum RecordsActiveSheet: Identifiable {
     case activity
     case academicYears
     case export
+    case portfolio
     case editActivity(LearningActivity)
 
     var id: String {
@@ -1774,6 +1826,7 @@ private enum RecordsActiveSheet: Identifiable {
         case .activity: return "activity"
         case .academicYears: return "academicYears"
         case .export: return "export"
+        case .portfolio: return "portfolio"
         case .editActivity(let activity): return "editActivity-\(activity.id.uuidString)"
         }
     }
@@ -1845,6 +1898,8 @@ struct RecordsView: View {
             AcademicYearsView(selectedYearID: $selectedYearID)
         case .export:
             ExportRecordsSheet(initialYear: currentYear)
+        case .portfolio:
+            PortfolioView()
         case .editActivity(let activity):
             EditActivityView(activity: activity)
         }
@@ -2040,6 +2095,28 @@ struct RecordsView: View {
                 .padding(.vertical, 4)
             }
             .accessibilityIdentifier("addActivity")
+
+            Button { activeSheet = .portfolio } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "photo.on.rectangle.angled")
+                        .font(.title3)
+                        .foregroundStyle(Sage.accent)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Student work portfolio")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                        Text("\(store.state.portfolioItems.count) work samples · Photos, tests, artwork")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.vertical, 4)
+            }
+            .accessibilityIdentifier("openPortfolio")
         }
     }
 
@@ -2652,6 +2729,14 @@ private struct ExportRecordsSheet: View {
         selectedStudentID.flatMap(store.student(for:))
     }
 
+    private var availableFormats: [ExportFormat] {
+        if reportType == .calendar {
+            return [.ics]
+        } else {
+            return [.pdf, .csv]
+        }
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -2693,7 +2778,7 @@ private struct ExportRecordsSheet: View {
                     .accessibilityIdentifier("exportStudentPicker")
 
                     Picker("Export Format", selection: $exportFormat) {
-                        ForEach(ExportFormat.allCases) { format in
+                        ForEach(availableFormats) { format in
                             Text(format.rawValue).tag(format)
                         }
                     }
@@ -2713,6 +2798,16 @@ private struct ExportRecordsSheet: View {
                             #else
                             Text("PDF Preview not available on this platform")
                             #endif
+                        } else if exportFormat == .ics {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Label("iCalendar (.ics) Ready for Export", systemImage: "calendar.badge.clock")
+                                    .font(.headline)
+                                    .foregroundStyle(Sage.accent)
+                                Text("Standard RFC 5545 iCalendar schedule (\(file.data.count) bytes) compatible with Apple Calendar, Google Calendar, and Microsoft Outlook.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 8)
                         } else {
                             VStack(alignment: .leading, spacing: 8) {
                                 Label("Spreadsheet Ready for Export", systemImage: "tablecells")
@@ -2762,7 +2857,14 @@ private struct ExportRecordsSheet: View {
             .onAppear {
                 generateReport()
             }
-            .onChange(of: reportType) { generateReport() }
+            .onChange(of: reportType) {
+                if reportType == .calendar {
+                    exportFormat = .ics
+                } else if exportFormat == .ics {
+                    exportFormat = .pdf
+                }
+                generateReport()
+            }
             .onChange(of: exportFormat) { generateReport() }
             .onChange(of: selectedStudentID) { generateReport() }
             .onChange(of: selectedYearID) { generateReport() }
@@ -2778,6 +2880,17 @@ private struct ExportRecordsSheet: View {
 
         do {
             switch exportFormat {
+            case .ics:
+                let icsString = HomeschoolCalendarGenerator.generateICS(
+                    state: store.state,
+                    studentID: student?.id,
+                    academicYear: year
+                )
+                let data = Data(icsString.utf8)
+                let file = try ExportedReportFile(fileName: "\(baseName).ics", data: data, format: .ics)
+                exportedFile = file
+                exportError = nil
+
             case .pdf:
                 #if canImport(UIKit)
                 let pdfData = HomeschoolPDFGenerator.generateReportPDF(
@@ -2796,7 +2909,7 @@ private struct ExportRecordsSheet: View {
                 switch reportType {
                 case .attendance:
                     csvString = HomeschoolCSVGenerator.generateAttendanceCSV(state: store.state, student: student, year: year)
-                case .curriculum:
+                case .curriculum, .calendar:
                     csvString = HomeschoolCSVGenerator.generateCurriculumCSV(state: store.state, student: student, year: year)
                 case .chronicle:
                     csvString = HomeschoolCSVGenerator.generateChronicleCSV(state: store.state, student: student, year: year)

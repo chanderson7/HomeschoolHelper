@@ -388,6 +388,58 @@ final class HomeschoolStoreTests: XCTestCase {
             XCTAssertEqual(store.cumulativeGPA(for: student.id, weighted: false), 3.7)
         }
     }
+
+    func testPortfolioManagementInStore() async {
+        let student = Student(name: "Leo", gradeLevel: "6")
+        let repository = InMemorySchoolRepository(state: SchoolState(students: [student]))
+        await MainActor.run {
+            let store = HomeschoolStore(repository: repository)
+
+            var deletedImageFile: String?
+            store.onPortfolioItemDeleted = { file in
+                deletedImageFile = file
+            }
+
+            // Add portfolio item
+            XCTAssertTrue(store.addPortfolioItem(
+                studentID: student.id,
+                title: "Robotics Blueprint",
+                day: "2026-09-12",
+                imageFileName: "blueprint.jpg",
+                notes: "Initial prototype sketch"
+            ))
+            XCTAssertEqual(store.state.portfolioItems.count, 1)
+            let item = store.state.portfolioItems[0]
+            XCTAssertEqual(item.title, "Robotics Blueprint")
+            XCTAssertEqual(store.portfolioItem(for: item.id)?.title, "Robotics Blueprint")
+            XCTAssertEqual(store.portfolioItems(for: student.id).count, 1)
+
+            // Update portfolio item
+            XCTAssertTrue(store.updatePortfolioItem(id: item.id, title: "Robotics Blueprint v2", notes: "Added gear ratio math"))
+            XCTAssertEqual(store.portfolioItem(for: item.id)?.title, "Robotics Blueprint v2")
+
+            // Delete portfolio item with image cleanup callback
+            XCTAssertTrue(store.deletePortfolioItem(id: item.id, imageFileName: item.imageFileName))
+            XCTAssertEqual(store.state.portfolioItems.count, 0)
+            XCTAssertEqual(deletedImageFile, "blueprint.jpg")
+        }
+    }
+
+    func testDailyReminderSettingsInStore() async {
+        let repository = InMemorySchoolRepository(state: SchoolState())
+        await MainActor.run {
+            let store = HomeschoolStore(repository: repository)
+
+            var syncCalled = false
+            store.onSyncDailyReminder = { enabled, time, state in
+                syncCalled = true
+            }
+
+            store.dailyReminderEnabled = true
+            XCTAssertTrue(store.dailyReminderEnabled)
+            XCTAssertTrue(syncCalled)
+        }
+    }
 }
 
 private enum FakeRepositoryError: LocalizedError, Sendable {

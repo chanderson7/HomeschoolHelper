@@ -111,6 +111,8 @@ struct SettingsView: View {
                         .accessibilityIdentifier("hapticsToggle")
                 }
 
+                NotificationsSection()
+
                 // 3. Parental Controls & Student Mode
                 Section("Parental Controls & Student Mode") {
                     Button {
@@ -449,6 +451,54 @@ struct ParentPINManagementSheet: View {
         }
         if store.setParentPIN(nil) {
             dismiss()
+        }
+    }
+}
+
+private struct NotificationsSection: View {
+    @EnvironmentObject private var store: HomeschoolStore
+    @StateObject private var notificationManager = NotificationManager.shared
+    @State private var showingPermissionAlert = false
+
+    var body: some View {
+        Section("Daily Notifications & Reminders") {
+            Toggle("Morning Lesson Digest", isOn: Binding(
+                get: { store.dailyReminderEnabled },
+                set: { enabled in
+                    if enabled {
+                        Task {
+                            let granted = await notificationManager.requestAuthorization()
+                            if granted {
+                                store.dailyReminderEnabled = true
+                            } else {
+                                store.dailyReminderEnabled = false
+                                showingPermissionAlert = true
+                            }
+                        }
+                    } else {
+                        store.dailyReminderEnabled = false
+                    }
+                }
+            ))
+            .accessibilityIdentifier("dailyReminderToggle")
+
+            if store.dailyReminderEnabled {
+                DatePicker(
+                    "Reminder Time",
+                    selection: $store.dailyReminderTime,
+                    displayedComponents: .hourAndMinute
+                )
+                .accessibilityIdentifier("dailyReminderTimePicker")
+
+                Text("A notification will be delivered each morning summarizing the scheduled lessons for each child.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .alert("Notifications Disabled", isPresented: $showingPermissionAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Please enable notifications for Homeschool Helper in iOS Settings to receive morning reminders.")
         }
     }
 }
