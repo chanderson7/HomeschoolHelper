@@ -248,11 +248,17 @@ final class HomeSchoolHelperUITests: XCTestCase {
         let row = app.switches[identifier]
         reveal(row)
         let expected = enabled ? "1" : "0"
-        if row.value as? String != expected {
-            row.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        guard row.value as? String != expected else { return }
+
+        for horizontalOffset in [0.9, 0.5] {
+            row.coordinate(withNormalizedOffset: CGVector(dx: horizontalOffset, dy: 0.5)).tap()
+            let changed = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "value == %@", expected),
+                object: row
+            )
+            if XCTWaiter.wait(for: [changed], timeout: 2) == .completed { return }
         }
-        let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", expected), object: row)
-        XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 3), .completed, "Switch \(identifier) did not change")
+        XCTFail("Switch \(identifier) did not change")
     }
 
     private enum ScrollDirection { case up, down }
