@@ -1,0 +1,799 @@
+import Foundation
+import SwiftUI
+import HomeschoolCore
+#if canImport(UIKit)
+import UIKit
+#endif
+#if canImport(PDFKit)
+import PDFKit
+#endif
+import UniformTypeIdentifiers
+
+// MARK: - Export Models
+
+public enum ReportType: String, CaseIterable, Identifiable {
+    case attendance = "Attendance & Hours Log"
+    case curriculum = "Curriculum Progress Report"
+    case chronicle = "Comprehensive Annual Chronicle"
+
+    public var id: String { rawValue }
+
+    public var systemImage: String {
+        switch self {
+        case .attendance:
+            return "calendar.badge.clock"
+        case .curriculum:
+            return "book.closed"
+        case .chronicle:
+            return "doc.richtext"
+        }
+    }
+
+    public var summary: String {
+        switch self {
+        case .attendance:
+            return "Official daily attendance log, cumulative hours, state compliance target, and parent legal signature line."
+        case .curriculum:
+            return "Course progress breakdown, completed lessons, planned syllabus, and mastery pacing."
+        case .chronicle:
+            return "Comprehensive portfolio chronicle combining attendance, curriculum pacing, extracurricular activities, and certification."
+        }
+    }
+}
+
+public enum ExportFormat: String, CaseIterable, Identifiable {
+    case pdf = "PDF Document"
+    case csv = "CSV Spreadsheet"
+
+    public var id: String { rawValue }
+
+    public var fileExtension: String {
+        switch self {
+        case .pdf: return "pdf"
+        case .csv: return "csv"
+        }
+    }
+
+    public var utType: UTType {
+        switch self {
+        case .pdf: return .pdf
+        case .csv: return .commaSeparatedText
+        }
+    }
+}
+
+public struct ExportedReportFile: Identifiable {
+    public let id = UUID()
+    public let fileName: String
+    public let data: Data
+    public let format: ExportFormat
+    public let fileURL: URL
+
+    public init(fileName: String, data: Data, format: ExportFormat) throws {
+        self.fileName = fileName
+        self.data = data
+        self.format = format
+
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("HomeschoolExports", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        let destination = tempDir.appendingPathComponent(fileName)
+        try data.write(to: destination, options: .atomic)
+        self.fileURL = destination
+    }
+}
+
+// MARK: - CSV Generation Engine (RFC 4180)
+
+public enum HomeschoolCSVGenerator {
+    private static func escapeField(_ text: String) -> String {
+        if text.contains(",") || text.contains("\"") || text.contains("\n") || text.contains("\r") {
+            let escaped = text.replacingOccurrences(of: "\"", with: "\"\"")
+            return "\"\(escaped)\""
+        }
+        return text
+    }
+
+    private static func formatRow(_ fields: [String]) -> String {
+        fields.map(escapeField).joined(separator: ",")
+    }
+
+    public static func generateAttendanceCSV(
+        state: SchoolState,
+        student: Student?,
+        year: AcademicYear
+    ) -> String {
+        var lines: [String] = []
+
+        // Header Comments / Metadata
+        lines.append(formatRow(["HOMESCHOOL HELPER - OFFICIAL ATTENDANCE & HOURS LOG"]))
+        lines.append(formatRow(["Academic Year", year.title, "Dates", "\(year.startDay) to \(year.endDay)"]))
+        if let student {
+            lines.append(formatRow(["Student", student.name, "Grade", student.gradeLevel]))
+        } else {
+            lines.append(formatRow(["Scope", "All Students (Household)"]))
+        }
+        lines.append(formatRow(["Target Days", "\(year.targetDays)"]))
+        if let targetHours = year.targetHours {
+            lines.append(formatRow(["Target Hours", "\(targetHours)"]))
+        }
+        lines.append("")
+
+        // Table Header
+        lines.append(formatRow(["Date", "Student", "Grade", "Minutes", "Hours"]))
+
+        let entries = state.attendance(for: student?.id, in: year).sorted { $0.day < $1.day }
+        var totalMinutes = 0
+        var uniqueDays = Set<String>()
+
+        for entry in entries {
+            let entryStudent = state.students.first { $0.id == entry.studentID }
+            let studentName = entryStudent?.name ?? "Student"
+            let grade = entryStudent?.gradeLevel ?? ""
+            let hours = String(format: "%.2f", Double(entry.minutes) / 60.0)
+            lines.append(formatRow([entry.day, studentName, grade, "\(entry.minutes)", hours]))
+            totalMinutes += entry.minutes
+            uniqueDays.insert(entry.day)
+        }
+
+        lines.append("")
+        lines.append(formatRow(["--- COMPLIANCE SUMMARY ---"]))
+        lines.append(formatRow(["Total Days Attended", "\(uniqueDays.count)"]))
+        lines.append(formatRow(["Target Days", "\(year.targetDays)"]))
+        let daysMet = uniqueDays.count >= year.targetDays ? "YES" : "IN PROGRESS"
+        lines.append(formatRow(["Days Target Met", daysMet]))
+        lines.append(formatRow(["Total Instructional Hours", String(format: "%.2f", Double(totalMinutes) / 60.0)]))
+        if let targetHours = year.targetHours {
+            let hoursMet = (totalMinutes / 60) >= targetHours ? "YES" : "IN PROGRESS"
+            lines.append(formatRow(["Target Hours", "\(targetHours)"]))
+            lines.append(formatRow(["Hours Target Met", hoursMet]))
+        }
+
+        return lines.joined(separator: "\r\n")
+    }
+
+    public static func generateCurriculumCSV(
+        state: SchoolState,
+        student: Student?,
+        year: AcademicYear
+    ) -> String {
+        var lines: [String] = []
+
+        lines.append(formatRow(["HOMESCHOOL HELPER - CURRICULUM PROGRESS REPORT"]))
+        lines.append(formatRow(["Academic Year", year.title]))
+        if let student {
+            lines.append(formatRow(["Student", student.name, "Grade", student.gradeLevel]))
+        } else {
+            lines.append(formatRow(["Scope", "All Students (Household)"]))
+        }
+        lines.append("")
+
+        lines.append(formatRow(["Course", "Student", "Lesson #", "Lesson Title", "Status", "Scheduled Date", "Completed Date"]))
+
+        let targetStudents = student != nil ? [student!] : state.students
+        for st in targetStudents {
+            let studentLessonIDs = Set(state.assignments.filter { $0.studentID == st.id }.map(\.lessonID))
+            let studentCourseIDs = Set(state.lessons.filter { studentLessonIDs.contains($0.id) }.map(\.courseID))
+            let studentCourses = state.courses.filter { studentCourseIDs.contains($0.id) }
+            let studentAssignments = state.assignments.filter { $0.studentID == st.id }
+
+            for course in studentCourses {
+                let courseLessons = state.lessons.filter { $0.courseID == course.id }.sorted { $0.sequence < $1.sequence }
+
+                for lesson in courseLessons {
+                    let assignment = studentAssignments.first { $0.lessonID == lesson.id }
+                    let status = assignment?.status.rawValue.capitalized ?? "Planned"
+                    let scheduled = assignment?.scheduledDay ?? ""
+                    let completed = assignment?.completedDay ?? ""
+                    lines.append(formatRow([
+                        course.title,
+                        st.name,
+                        "\(lesson.sequence)",
+                        lesson.title,
+                        status,
+                        scheduled,
+                        completed
+                    ]))
+                }
+            }
+        }
+
+        return lines.joined(separator: "\r\n")
+    }
+
+    public static func generateChronicleCSV(
+        state: SchoolState,
+        student: Student?,
+        year: AcademicYear
+    ) -> String {
+        var lines: [String] = []
+
+        lines.append(formatRow(["HOMESCHOOL HELPER - COMPREHENSIVE ANNUAL CHRONICLE"]))
+        lines.append(formatRow(["Academic Year", year.title, "Range", "\(year.startDay) to \(year.endDay)"]))
+        if let student {
+            lines.append(formatRow(["Student", student.name, "Grade", student.gradeLevel]))
+        } else {
+            lines.append(formatRow(["Scope", "Household (All Students)"]))
+        }
+        lines.append("")
+
+        // Section 1: Attendance
+        lines.append(formatRow(["--- ATTENDANCE LOG ---"]))
+        lines.append(formatRow(["Date", "Student", "Minutes", "Hours"]))
+        let entries = state.attendance(for: student?.id, in: year).sorted { $0.day < $1.day }
+        for entry in entries {
+            let st = state.students.first { $0.id == entry.studentID }
+            let hours = String(format: "%.2f", Double(entry.minutes) / 60.0)
+            lines.append(formatRow([entry.day, st?.name ?? "Student", "\(entry.minutes)", hours]))
+        }
+        lines.append("")
+
+        // Section 2: Learning Activities
+        lines.append(formatRow(["--- LEARNING ACTIVITIES & FIELD TRIPS ---"]))
+        lines.append(formatRow(["Date", "Student", "Activity", "Minutes", "Hours"]))
+        let activities = state.activities(for: student?.id, in: year).sorted { $0.day < $1.day }
+        for act in activities {
+            let st = state.students.first { $0.id == act.studentID }
+            let hours = String(format: "%.2f", Double(act.minutes) / 60.0)
+            lines.append(formatRow([act.day, st?.name ?? "Student", act.title, "\(act.minutes)", hours]))
+        }
+        lines.append("")
+
+        // Section 3: Curriculum summary
+        lines.append(formatRow(["--- CURRICULUM SUMMARY ---"]))
+        lines.append(formatRow(["Course", "Student", "Total Lessons", "Completed", "Pacing %"]))
+        let targetStudents = student != nil ? [student!] : state.students
+        for st in targetStudents {
+            let studentLessonIDs = Set(state.assignments.filter { $0.studentID == st.id }.map(\.lessonID))
+            let studentCourseIDs = Set(state.lessons.filter { studentLessonIDs.contains($0.id) }.map(\.courseID))
+            let studentCourses = state.courses.filter { studentCourseIDs.contains($0.id) }
+            let studentAssignments = state.assignments.filter { $0.studentID == st.id }
+            let completedLessonIDs = Set(studentAssignments.filter { $0.status == .completed }.map(\.lessonID))
+
+            for course in studentCourses {
+                let courseLessons = state.lessons.filter { $0.courseID == course.id }
+                let completedCount = courseLessons.filter { completedLessonIDs.contains($0.id) }.count
+                let total = courseLessons.count
+                let pct = total > 0 ? "\(Int((Double(completedCount) / Double(total)) * 100))%" : "0%"
+                lines.append(formatRow([course.title, st.name, "\(total)", "\(completedCount)", pct]))
+            }
+        }
+
+        return lines.joined(separator: "\r\n")
+    }
+}
+
+// MARK: - PDF Generation Engine (Letter 8.5" x 11")
+
+#if canImport(UIKit)
+public enum HomeschoolPDFGenerator {
+    // 8.5" x 11" at 72 dpi = 612 x 792 points
+    private static let pageWidth: CGFloat = 612
+    private static let pageHeight: CGFloat = 792
+    private static let margin: CGFloat = 36
+    private static let contentWidth: CGFloat = pageWidth - (margin * 2)
+    private static let maxY: CGFloat = pageHeight - margin - 30 // reserve space for footer
+
+    public static func generateReportPDF(
+        type: ReportType,
+        state: SchoolState,
+        student: Student?,
+        year: AcademicYear
+    ) -> Data {
+        let pdfMetaData = [
+            kCGPDFContextCreator: "Homeschool Helper",
+            kCGPDFContextAuthor: "Homeschool Helper Official Records",
+            kCGPDFContextTitle: "\(type.rawValue) - \(year.title)"
+        ]
+        let format = UIGraphicsPDFRendererFormat()
+        format.documentInfo = pdfMetaData as [String: Any]
+
+        let renderer = UIGraphicsPDFRenderer(bounds: CGRect(x: 0, y: 0, width: pageWidth, height: pageHeight), format: format)
+
+        return renderer.pdfData { context in
+            var pageIndex = 1
+            context.beginPage()
+            var currentY: CGFloat = margin
+
+            func drawRunningHeader() {
+                let headerFont = UIFont.systemFont(ofSize: 8, weight: .bold)
+                let subFont = UIFont.systemFont(ofSize: 8, weight: .regular)
+                let headerText = "HOMESCHOOL HELPER — OFFICIAL ACADEMIC RECORD"
+                let dateText = "Generated: \(Date().formatted(.dateTime.year().month().day()))"
+
+                let attributes: [NSAttributedString.Key: Any] = [
+                    .font: headerFont,
+                    .foregroundColor: UIColor.secondaryLabel
+                ]
+                (headerText as NSString).draw(at: CGPoint(x: margin, y: margin), withAttributes: attributes)
+
+                let rightAttributes: [NSAttributedString.Key: Any] = [
+                    .font: subFont,
+                    .foregroundColor: UIColor.secondaryLabel
+                ]
+                let rightSize = (dateText as NSString).size(withAttributes: rightAttributes)
+                (dateText as NSString).draw(at: CGPoint(x: pageWidth - margin - rightSize.width, y: margin), withAttributes: rightAttributes)
+
+                let path = UIBezierPath()
+                path.move(to: CGPoint(x: margin, y: margin + 14))
+                path.addLine(to: CGPoint(x: pageWidth - margin, y: margin + 14))
+                path.lineWidth = 0.5
+                UIColor.separator.setStroke()
+                path.stroke()
+            }
+
+            func drawRunningFooter() {
+                let footerFont = UIFont.systemFont(ofSize: 8, weight: .regular)
+                let footerText = "Official Documentation • Confidential School Record"
+                let pageText = "Page \(pageIndex)"
+
+                let leftAttr: [NSAttributedString.Key: Any] = [.font: footerFont, .foregroundColor: UIColor.tertiaryLabel]
+                (footerText as NSString).draw(at: CGPoint(x: margin, y: pageHeight - margin + 8), withAttributes: leftAttr)
+
+                let rightSize = (pageText as NSString).size(withAttributes: leftAttr)
+                (pageText as NSString).draw(at: CGPoint(x: pageWidth - margin - rightSize.width, y: pageHeight - margin + 8), withAttributes: leftAttr)
+            }
+
+            func checkNewPage(neededHeight: CGFloat) {
+                if currentY + neededHeight > maxY {
+                    drawRunningFooter()
+                    context.beginPage()
+                    pageIndex += 1
+                    currentY = margin + 24
+                    drawRunningHeader()
+                }
+            }
+
+            // Draw initial header
+            drawRunningHeader()
+            currentY += 24
+
+            // Document Title
+            let titleFont = UIFont.systemFont(ofSize: 18, weight: .bold)
+            let titleText = type.rawValue
+            let titleAttributes: [NSAttributedString.Key: Any] = [
+                .font: titleFont,
+                .foregroundColor: UIColor.label
+            ]
+            (titleText as NSString).draw(at: CGPoint(x: margin, y: currentY), withAttributes: titleAttributes)
+            currentY += 22
+
+            // Metadata Sub-bar
+            let metaFont = UIFont.systemFont(ofSize: 10, weight: .medium)
+            let studentName = student?.name ?? "All Students (Household)"
+            let grade = student != nil ? " • Grade \(student!.gradeLevel)" : ""
+            let metaText = "Academic Year: \(year.title) (\(year.startDay) to \(year.endDay))  |  Student: \(studentName)\(grade)"
+            let metaAttributes: [NSAttributedString.Key: Any] = [
+                .font: metaFont,
+                .foregroundColor: UIColor.secondaryLabel
+            ]
+            (metaText as NSString).draw(at: CGPoint(x: margin, y: currentY), withAttributes: metaAttributes)
+            currentY += 18
+
+            // Compliance Summary Card
+            currentY = drawComplianceSummaryBox(
+                in: context,
+                currentY: currentY,
+                state: state,
+                student: student,
+                year: year
+            )
+
+            switch type {
+            case .attendance:
+                currentY = drawAttendanceSection(
+                    in: context,
+                    currentY: currentY,
+                    checkNewPage: checkNewPage,
+                    state: state,
+                    student: student,
+                    year: year
+                )
+                currentY = drawSignatureBlock(
+                    in: context,
+                    currentY: currentY,
+                    checkNewPage: checkNewPage
+                )
+
+            case .curriculum:
+                currentY = drawCurriculumSection(
+                    in: context,
+                    currentY: currentY,
+                    checkNewPage: checkNewPage,
+                    state: state,
+                    student: student,
+                    year: year
+                )
+
+            case .chronicle:
+                currentY = drawAttendanceSection(
+                    in: context,
+                    currentY: currentY,
+                    checkNewPage: checkNewPage,
+                    state: state,
+                    student: student,
+                    year: year
+                )
+                currentY = drawActivitiesSection(
+                    in: context,
+                    currentY: currentY,
+                    checkNewPage: checkNewPage,
+                    state: state,
+                    student: student,
+                    year: year
+                )
+                currentY = drawCurriculumSection(
+                    in: context,
+                    currentY: currentY,
+                    checkNewPage: checkNewPage,
+                    state: state,
+                    student: student,
+                    year: year
+                )
+                currentY = drawSignatureBlock(
+                    in: context,
+                    currentY: currentY,
+                    checkNewPage: checkNewPage
+                )
+            }
+
+            drawRunningFooter()
+        }
+    }
+
+    private static func drawComplianceSummaryBox(
+        in context: UIGraphicsPDFRendererContext,
+        currentY: CGFloat,
+        state: SchoolState,
+        student: Student?,
+        year: AcademicYear
+    ) -> CGFloat {
+        var y = currentY
+        let boxRect = CGRect(x: margin, y: y, width: contentWidth, height: 50)
+        let boxPath = UIBezierPath(roundedRect: boxRect, cornerRadius: 6)
+        UIColor.systemGray6.setFill()
+        boxPath.fill()
+
+        UIColor.systemGray4.setStroke()
+        boxPath.lineWidth = 0.5
+        boxPath.stroke()
+
+        let entries = state.attendance(for: student?.id, in: year)
+        let daysCount = Set(entries.map(\.day)).count
+        let totalMinutes = entries.reduce(0) { $0 + $1.minutes }
+        let totalHours = Double(totalMinutes) / 60.0
+        let daysPercent = year.targetDays > 0 ? Int((Double(daysCount) / Double(year.targetDays)) * 100) : 0
+
+        // Column 1: Days
+        let col1Rect = CGRect(x: margin + 12, y: y + 8, width: 160, height: 34)
+        drawMetric(
+            title: "ATTENDANCE DAYS",
+            value: "\(daysCount) of \(year.targetDays) (\(daysPercent)%)",
+            rect: col1Rect
+        )
+
+        // Column 2: Hours
+        let col2Rect = CGRect(x: margin + 180, y: y + 8, width: 160, height: 34)
+        let targetHoursStr = year.targetHours != nil ? " / \(year.targetHours!)" : ""
+        drawMetric(
+            title: "INSTRUCTIONAL HOURS",
+            value: "\(String(format: "%.1f", totalHours)) hrs\(targetHoursStr)",
+            rect: col2Rect
+        )
+
+        // Column 3: Status
+        let col3Rect = CGRect(x: margin + 350, y: y + 8, width: 170, height: 34)
+        let status = daysCount >= year.targetDays ? "COMPLIANCE MET" : "IN PROGRESS"
+        drawMetric(
+            title: "COMPLIANCE STATUS",
+            value: status,
+            rect: col3Rect,
+            isHighlight: daysCount >= year.targetDays
+        )
+
+        y += 60
+        return y
+    }
+
+    private static func drawMetric(title: String, value: String, rect: CGRect, isHighlight: Bool = false) {
+        let titleFont = UIFont.systemFont(ofSize: 7, weight: .semibold)
+        let titleAttr: [NSAttributedString.Key: Any] = [.font: titleFont, .foregroundColor: UIColor.secondaryLabel]
+        (title as NSString).draw(at: rect.origin, withAttributes: titleAttr)
+
+        let valFont = UIFont.systemFont(ofSize: 11, weight: .bold)
+        let color = isHighlight ? UIColor.systemGreen : UIColor.label
+        let valAttr: [NSAttributedString.Key: Any] = [.font: valFont, .foregroundColor: color]
+        (value as NSString).draw(at: CGPoint(x: rect.origin.x, y: rect.origin.y + 12), withAttributes: valAttr)
+    }
+
+    private static func drawAttendanceSection(
+        in context: UIGraphicsPDFRendererContext,
+        currentY: CGFloat,
+        checkNewPage: (CGFloat) -> Void,
+        state: SchoolState,
+        student: Student?,
+        year: AcademicYear
+    ) -> CGFloat {
+        var y = currentY
+        checkNewPage(40)
+
+        // Section Title
+        let sectionFont = UIFont.systemFont(ofSize: 12, weight: .bold)
+        let sectionAttr: [NSAttributedString.Key: Any] = [.font: sectionFont, .foregroundColor: UIColor.label]
+        ("Attendance & Instructional Hours Log" as NSString).draw(at: CGPoint(x: margin, y: y), withAttributes: sectionAttr)
+        y += 18
+
+        // Table Header
+        let thFont = UIFont.systemFont(ofSize: 8, weight: .bold)
+        let thAttr: [NSAttributedString.Key: Any] = [.font: thFont, .foregroundColor: UIColor.secondaryLabel]
+
+        ("Date" as NSString).draw(at: CGPoint(x: margin + 6, y: y), withAttributes: thAttr)
+        ("Student" as NSString).draw(at: CGPoint(x: margin + 110, y: y), withAttributes: thAttr)
+        ("Minutes" as NSString).draw(at: CGPoint(x: margin + 300, y: y), withAttributes: thAttr)
+        ("Hours" as NSString).draw(at: CGPoint(x: margin + 420, y: y), withAttributes: thAttr)
+        y += 14
+
+        let line = UIBezierPath()
+        line.move(to: CGPoint(x: margin, y: y))
+        line.addLine(to: CGPoint(x: pageWidth - margin, y: y))
+        line.lineWidth = 0.5
+        UIColor.separator.setStroke()
+        line.stroke()
+        y += 4
+
+        let entries = state.attendance(for: student?.id, in: year).sorted { $0.day < $1.day }
+        let rowFont = UIFont.systemFont(ofSize: 8, weight: .regular)
+        let rowAttr: [NSAttributedString.Key: Any] = [.font: rowFont, .foregroundColor: UIColor.label]
+
+        if entries.isEmpty {
+            ("No attendance recorded for this period." as NSString).draw(
+                at: CGPoint(x: margin + 6, y: y + 4),
+                withAttributes: [.font: rowFont, .foregroundColor: UIColor.secondaryLabel]
+            )
+            y += 24
+            return y
+        }
+
+        var isEven = false
+        for entry in entries {
+            checkNewPage(18)
+
+            let entryStudent = state.students.first { $0.id == entry.studentID }
+            let studentName = entryStudent?.name ?? "Student"
+
+            if isEven {
+                let bgRect = CGRect(x: margin, y: y, width: contentWidth, height: 16)
+                UIColor.systemGray6.setFill()
+                UIRectFill(bgRect)
+            }
+
+            (entry.day as NSString).draw(at: CGPoint(x: margin + 6, y: y + 3), withAttributes: rowAttr)
+            (studentName as NSString).draw(at: CGPoint(x: margin + 110, y: y + 3), withAttributes: rowAttr)
+            ("\(entry.minutes) min" as NSString).draw(at: CGPoint(x: margin + 300, y: y + 3), withAttributes: rowAttr)
+            (String(format: "%.2f hrs", Double(entry.minutes) / 60.0) as NSString).draw(at: CGPoint(x: margin + 420, y: y + 3), withAttributes: rowAttr)
+
+            y += 16
+            isEven.toggle()
+        }
+
+        y += 12
+        return y
+    }
+
+    private static func drawActivitiesSection(
+        in context: UIGraphicsPDFRendererContext,
+        currentY: CGFloat,
+        checkNewPage: (CGFloat) -> Void,
+        state: SchoolState,
+        student: Student?,
+        year: AcademicYear
+    ) -> CGFloat {
+        var y = currentY
+        checkNewPage(40)
+
+        let sectionFont = UIFont.systemFont(ofSize: 12, weight: .bold)
+        ("Learning Activities & Extracurriculars" as NSString).draw(
+            at: CGPoint(x: margin, y: y),
+            withAttributes: [.font: sectionFont, .foregroundColor: UIColor.label]
+        )
+        y += 18
+
+        let thFont = UIFont.systemFont(ofSize: 8, weight: .bold)
+        let thAttr: [NSAttributedString.Key: Any] = [.font: thFont, .foregroundColor: UIColor.secondaryLabel]
+        ("Date" as NSString).draw(at: CGPoint(x: margin + 6, y: y), withAttributes: thAttr)
+        ("Activity Title" as NSString).draw(at: CGPoint(x: margin + 110, y: y), withAttributes: thAttr)
+        ("Student" as NSString).draw(at: CGPoint(x: margin + 330, y: y), withAttributes: thAttr)
+        ("Duration" as NSString).draw(at: CGPoint(x: margin + 450, y: y), withAttributes: thAttr)
+        y += 14
+
+        let line = UIBezierPath()
+        line.move(to: CGPoint(x: margin, y: y))
+        line.addLine(to: CGPoint(x: pageWidth - margin, y: y))
+        line.lineWidth = 0.5
+        UIColor.separator.setStroke()
+        line.stroke()
+        y += 4
+
+        let activities = state.activities(for: student?.id, in: year).sorted { $0.day < $1.day }
+        let rowFont = UIFont.systemFont(ofSize: 8, weight: .regular)
+        let rowAttr: [NSAttributedString.Key: Any] = [.font: rowFont, .foregroundColor: UIColor.label]
+
+        if activities.isEmpty {
+            ("No independent activities logged for this period." as NSString).draw(
+                at: CGPoint(x: margin + 6, y: y + 4),
+                withAttributes: [.font: rowFont, .foregroundColor: UIColor.secondaryLabel]
+            )
+            y += 24
+            return y
+        }
+
+        var isEven = false
+        for act in activities {
+            checkNewPage(18)
+            let st = state.students.first { $0.id == act.studentID }
+            let studentName = st?.name ?? "Student"
+
+            if isEven {
+                let bgRect = CGRect(x: margin, y: y, width: contentWidth, height: 16)
+                UIColor.systemGray6.setFill()
+                UIRectFill(bgRect)
+            }
+
+            (act.day as NSString).draw(at: CGPoint(x: margin + 6, y: y + 3), withAttributes: rowAttr)
+            (act.title as NSString).draw(at: CGPoint(x: margin + 110, y: y + 3), withAttributes: rowAttr)
+            (studentName as NSString).draw(at: CGPoint(x: margin + 330, y: y + 3), withAttributes: rowAttr)
+            ("\(act.minutes) min" as NSString).draw(at: CGPoint(x: margin + 450, y: y + 3), withAttributes: rowAttr)
+
+            y += 16
+            isEven.toggle()
+        }
+
+        y += 12
+        return y
+    }
+
+    private static func drawCurriculumSection(
+        in context: UIGraphicsPDFRendererContext,
+        currentY: CGFloat,
+        checkNewPage: (CGFloat) -> Void,
+        state: SchoolState,
+        student: Student?,
+        year: AcademicYear
+    ) -> CGFloat {
+        var y = currentY
+        checkNewPage(40)
+
+        let sectionFont = UIFont.systemFont(ofSize: 12, weight: .bold)
+        ("Curriculum & Course Progress" as NSString).draw(
+            at: CGPoint(x: margin, y: y),
+            withAttributes: [.font: sectionFont, .foregroundColor: UIColor.label]
+        )
+        y += 18
+
+        let targetStudents = student != nil ? [student!] : state.students
+        let rowFont = UIFont.systemFont(ofSize: 8, weight: .regular)
+        let rowAttr: [NSAttributedString.Key: Any] = [.font: rowFont, .foregroundColor: UIColor.label]
+        let thFont = UIFont.systemFont(ofSize: 8, weight: .bold)
+        let thAttr: [NSAttributedString.Key: Any] = [.font: thFont, .foregroundColor: UIColor.secondaryLabel]
+
+        for st in targetStudents {
+            let studentLessonIDs = Set(state.assignments.filter { $0.studentID == st.id }.map(\.lessonID))
+            let studentCourseIDs = Set(state.lessons.filter { studentLessonIDs.contains($0.id) }.map(\.courseID))
+            let courses = state.courses.filter { studentCourseIDs.contains($0.id) }
+            for course in courses {
+                checkNewPage(50)
+
+                let courseHeader = "\(course.title) — \(st.name)"
+                (courseHeader as NSString).draw(
+                    at: CGPoint(x: margin + 4, y: y),
+                    withAttributes: [.font: UIFont.systemFont(ofSize: 10, weight: .semibold), .foregroundColor: UIColor.label]
+                )
+                y += 14
+
+                // Table Header
+                ("#" as NSString).draw(at: CGPoint(x: margin + 6, y: y), withAttributes: thAttr)
+                ("Lesson Title" as NSString).draw(at: CGPoint(x: margin + 35, y: y), withAttributes: thAttr)
+                ("Status" as NSString).draw(at: CGPoint(x: margin + 320, y: y), withAttributes: thAttr)
+                ("Completed Date" as NSString).draw(at: CGPoint(x: margin + 430, y: y), withAttributes: thAttr)
+                y += 12
+
+                let lessons = state.lessons.filter { $0.courseID == course.id }.sorted { $0.sequence < $1.sequence }
+                let assignments = state.assignments.filter { $0.studentID == st.id }
+
+                var isEven = false
+                for lesson in lessons {
+                    checkNewPage(16)
+                    let assign = assignments.first { $0.lessonID == lesson.id }
+                    let status = assign?.status.rawValue.capitalized ?? "Planned"
+                    let completed = assign?.completedDay ?? "—"
+
+                    if isEven {
+                        let bgRect = CGRect(x: margin, y: y, width: contentWidth, height: 15)
+                        UIColor.systemGray6.setFill()
+                        UIRectFill(bgRect)
+                    }
+
+                    ("\(lesson.sequence)" as NSString).draw(at: CGPoint(x: margin + 6, y: y + 2), withAttributes: rowAttr)
+                    (lesson.title as NSString).draw(at: CGPoint(x: margin + 35, y: y + 2), withAttributes: rowAttr)
+                    (status as NSString).draw(at: CGPoint(x: margin + 320, y: y + 2), withAttributes: rowAttr)
+                    (completed as NSString).draw(at: CGPoint(x: margin + 430, y: y + 2), withAttributes: rowAttr)
+
+                    y += 15
+                    isEven.toggle()
+                }
+                y += 10
+            }
+        }
+
+        return y
+    }
+
+    private static func drawSignatureBlock(
+        in context: UIGraphicsPDFRendererContext,
+        currentY: CGFloat,
+        checkNewPage: (CGFloat) -> Void
+    ) -> CGFloat {
+        var y = currentY
+        checkNewPage(90)
+
+        y += 10
+        let attestationFont = UIFont.italicSystemFont(ofSize: 8)
+        let attestationText = "Legal Attestation: I, the undersigned parent / legal guardian, hereby attest and affirm under penalty of perjury that the attendance, instructional hours, and educational coursework recorded above represent bona fide home education conducted in compliance with applicable state home education laws and statutory requirements."
+        let attestationRect = CGRect(x: margin, y: y, width: contentWidth, height: 30)
+        (attestationText as NSString).draw(in: attestationRect, withAttributes: [.font: attestationFont, .foregroundColor: UIColor.secondaryLabel])
+        y += 36
+
+        // Signature Line
+        let labelFont = UIFont.systemFont(ofSize: 8, weight: .medium)
+        let labelAttr: [NSAttributedString.Key: Any] = [.font: labelFont, .foregroundColor: UIColor.label]
+
+        // Parent Signature Line
+        let line1 = UIBezierPath()
+        line1.move(to: CGPoint(x: margin, y: y + 16))
+        line1.addLine(to: CGPoint(x: margin + 260, y: y + 16))
+        line1.lineWidth = 0.5
+        UIColor.label.setStroke()
+        line1.stroke()
+        ("Parent / Guardian Signature" as NSString).draw(at: CGPoint(x: margin, y: y + 20), withAttributes: labelAttr)
+
+        // Date Line
+        let line2 = UIBezierPath()
+        line2.move(to: CGPoint(x: margin + 300, y: y + 16))
+        line2.addLine(to: CGPoint(x: margin + 440, y: y + 16))
+        line2.lineWidth = 0.5
+        UIColor.label.setStroke()
+        line2.stroke()
+        ("Date Signed" as NSString).draw(at: CGPoint(x: margin + 300, y: y + 20), withAttributes: labelAttr)
+
+        y += 40
+        return y
+    }
+}
+#endif
+
+// MARK: - PDFKit SwiftUI View Wrapper
+
+#if canImport(PDFKit)
+public struct PDFKitView: UIViewRepresentable {
+    public let data: Data
+
+    public init(data: Data) {
+        self.data = data
+    }
+
+    public func makeUIView(context: Context) -> PDFView {
+        let pdfView = PDFView()
+        pdfView.autoScales = true
+        pdfView.displayMode = .singlePageContinuous
+        pdfView.displayDirection = .vertical
+        pdfView.document = PDFDocument(data: data)
+        return pdfView
+    }
+
+    public func updateUIView(_ uiView: PDFView, context: Context) {
+        if uiView.document?.dataRepresentation() != data {
+            uiView.document = PDFDocument(data: data)
+        }
+    }
+}
+#endif

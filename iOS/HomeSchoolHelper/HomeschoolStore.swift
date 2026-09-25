@@ -203,6 +203,116 @@ final class HomeschoolStore: ObservableObject {
         }
     }
 
+    @discardableResult
+    func addAcademicYear(
+        title: String,
+        startDay: String,
+        endDay: String,
+        targetDays: Int = 180,
+        targetHours: Int? = nil,
+        makeActive: Bool = false
+    ) -> Bool {
+        update("add academic year") { state in
+            _ = try state.addAcademicYear(
+                title: title,
+                startDay: startDay,
+                endDay: endDay,
+                targetDays: targetDays,
+                targetHours: targetHours,
+                makeActive: makeActive
+            )
+        }
+    }
+
+    @discardableResult
+    func updateAcademicYear(
+        id: UUID,
+        title: String,
+        startDay: String,
+        endDay: String,
+        targetDays: Int,
+        targetHours: Int?
+    ) -> Bool {
+        update("update academic year") { state in
+            try state.updateAcademicYear(
+                id: id,
+                title: title,
+                startDay: startDay,
+                endDay: endDay,
+                targetDays: targetDays,
+                targetHours: targetHours
+            )
+        }
+    }
+
+    @discardableResult
+    func deleteAcademicYear(id: UUID) -> Bool {
+        update("delete academic year") { state in
+            try state.deleteAcademicYear(id: id)
+        }
+    }
+
+    @discardableResult
+    func setActiveAcademicYear(id: UUID?) -> Bool {
+        update("set active academic year") { state in
+            try state.setActiveAcademicYear(id: id)
+        }
+    }
+
+    @discardableResult
+    func addTerm(
+        yearID: UUID,
+        title: String,
+        startDay: String,
+        endDay: String
+    ) -> Bool {
+        update("add term") { state in
+            _ = try state.addTerm(yearID: yearID, title: title, startDay: startDay, endDay: endDay)
+        }
+    }
+
+    @discardableResult
+    func deleteTerm(id: UUID) -> Bool {
+        update("delete term") { state in
+            try state.deleteTerm(id: id)
+        }
+    }
+
+    var activeAcademicYear: AcademicYear {
+        state.resolvedActiveAcademicYear()
+    }
+
+    func academicYear(for id: UUID) -> AcademicYear? {
+        state.academicYears.first { $0.id == id }
+    }
+
+    func terms(for yearID: UUID) -> [AcademicTerm] {
+        state.terms.filter { $0.academicYearID == yearID }.sorted { $0.startDay < $1.startDay }
+    }
+
+    func attendance(for studentID: UUID? = nil, in year: AcademicYear? = nil) -> [AttendanceEntry] {
+        let targetYear = year ?? activeAcademicYear
+        return state.attendance(for: studentID, in: targetYear)
+    }
+
+    func attendanceDaysCount(for studentID: UUID? = nil, in year: AcademicYear? = nil) -> Int {
+        Set(attendance(for: studentID, in: year).map(\.day)).count
+    }
+
+    func instructionalMinutes(for studentID: UUID? = nil, in year: AcademicYear? = nil) -> Int {
+        attendance(for: studentID, in: year).reduce(0) { $0 + $1.minutes }
+    }
+
+    func completedAssignments(for studentID: UUID? = nil, in year: AcademicYear? = nil) -> [Assignment] {
+        let targetYear = year ?? activeAcademicYear
+        return state.completedAssignments(for: studentID, in: targetYear)
+    }
+
+    func activities(for studentID: UUID? = nil, in year: AcademicYear? = nil) -> [LearningActivity] {
+        let targetYear = year ?? activeAcademicYear
+        return state.activities(for: studentID, in: targetYear)
+    }
+
     func student(for id: UUID) -> Student? { state.students.first { $0.id == id } }
     func course(for id: UUID) -> Course? { state.courses.first { $0.id == id } }
     func lesson(for id: UUID) -> Lesson? { state.lessons.first { $0.id == id } }

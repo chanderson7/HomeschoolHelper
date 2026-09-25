@@ -481,4 +481,189 @@ final class SchoolStateTests: XCTestCase {
         XCTAssertThrowsError(try state.deleteActivity(id: activity.id))
         XCTAssertNoThrow(try state.validate())
     }
+
+    func testAcademicYearCRUDAndValidation() throws {
+        var state = SchoolState()
+        let yearID = try state.addAcademicYear(
+            title: "2024–2025",
+            startDay: "2024-08-01",
+            endDay: "2025-06-30",
+            targetDays: 180,
+            targetHours: 900,
+            makeActive: true
+        )
+        XCTAssertEqual(state.academicYears.count, 1)
+        XCTAssertEqual(state.activeYearID, yearID)
+        let year = try XCTUnwrap(state.academicYears.first)
+        XCTAssertEqual(year.title, "2024–2025")
+        XCTAssertEqual(year.targetDays, 180)
+        XCTAssertEqual(year.targetHours, 900)
+        XCTAssertTrue(year.contains(day: "2024-08-01"))
+        XCTAssertTrue(year.contains(day: "2025-01-15"))
+        XCTAssertTrue(year.contains(day: "2025-06-30"))
+        XCTAssertFalse(year.contains(day: "2024-07-31"))
+        XCTAssertFalse(year.contains(day: "2025-07-01"))
+
+        // Update year
+        try state.updateAcademicYear(
+            id: yearID,
+            title: "2024–2025 School Year",
+            startDay: "2024-08-15",
+            endDay: "2025-06-15",
+            targetDays: 175,
+            targetHours: 850
+        )
+        let updated = try XCTUnwrap(state.academicYears.first)
+        XCTAssertEqual(updated.title, "2024–2025 School Year")
+        XCTAssertEqual(updated.startDay, "2024-08-15")
+        XCTAssertEqual(updated.targetDays, 175)
+        XCTAssertEqual(updated.targetHours, 850)
+
+        // Validation errors
+        XCTAssertThrowsError(try state.addAcademicYear(title: "", startDay: "2025-08-01", endDay: "2026-06-30"))
+        XCTAssertThrowsError(try state.addAcademicYear(title: "Year", startDay: "2025-06-30", endDay: "2025-01-01")) // start >= end
+        XCTAssertThrowsError(try state.addAcademicYear(title: "Year", startDay: "bad-date", endDay: "2026-06-30"))
+        XCTAssertThrowsError(try state.addAcademicYear(title: "Year", startDay: "2025-08-01", endDay: "2026-06-30", targetDays: 0))
+        XCTAssertThrowsError(try state.addAcademicYear(title: "Year", startDay: "2025-08-01", endDay: "2026-06-30", targetDays: 400))
+        XCTAssertThrowsError(try state.addAcademicYear(title: "Year", startDay: "2025-08-01", endDay: "2026-06-30", targetHours: 0))
+
+        // Add second year & set active
+        let year2ID = try state.addAcademicYear(
+            title: "2025–2026",
+            startDay: "2025-08-01",
+            endDay: "2026-06-30"
+        )
+        try state.setActiveAcademicYear(id: year2ID)
+        XCTAssertEqual(state.activeYearID, year2ID)
+        try state.setActiveAcademicYear(id: nil)
+        XCTAssertNil(state.activeYearID)
+        XCTAssertThrowsError(try state.setActiveAcademicYear(id: UUID()))
+
+        // Delete year
+        try state.deleteAcademicYear(id: yearID)
+        XCTAssertEqual(state.academicYears.count, 1)
+        XCTAssertEqual(state.academicYears.first?.id, year2ID)
+        XCTAssertThrowsError(try state.deleteAcademicYear(id: yearID))
+    }
+
+    func testAcademicTermCRUDAndValidation() throws {
+        var state = SchoolState()
+        let yearID = try state.addAcademicYear(
+            title: "2024–2025",
+            startDay: "2024-08-01",
+            endDay: "2025-06-30"
+        )
+        let termID = try state.addTerm(
+            yearID: yearID,
+            title: "Fall Semester",
+            startDay: "2024-08-01",
+            endDay: "2024-12-20"
+        )
+        XCTAssertEqual(state.terms.count, 1)
+        let term = try XCTUnwrap(state.terms.first)
+        XCTAssertEqual(term.title, "Fall Semester")
+        XCTAssertEqual(term.academicYearID, yearID)
+
+        // Invalid term
+        XCTAssertThrowsError(try state.addTerm(yearID: UUID(), title: "Spring", startDay: "2025-01-06", endDay: "2025-05-30"))
+        XCTAssertThrowsError(try state.addTerm(yearID: yearID, title: "", startDay: "2025-01-06", endDay: "2025-05-30"))
+        XCTAssertThrowsError(try state.addTerm(yearID: yearID, title: "Spring", startDay: "2025-05-30", endDay: "2025-01-06"))
+
+        // Delete term
+        try state.deleteTerm(id: termID)
+        XCTAssertTrue(state.terms.isEmpty)
+        XCTAssertThrowsError(try state.deleteTerm(id: termID))
+
+        // Deleting year cascades to its terms
+        _ = try state.addTerm(yearID: yearID, title: "Semester 1", startDay: "2024-08-01", endDay: "2024-12-20")
+        XCTAssertEqual(state.terms.count, 1)
+        try state.deleteAcademicYear(id: yearID)
+        XCTAssertTrue(state.terms.isEmpty)
+    }
+
+    func testAcademicYearQueryScoping() throws {
+        var state = SchoolState()
+        let year2024 = AcademicYear(
+            title: "2024–2025",
+            startDay: "2024-08-01",
+            endDay: "2025-06-30",
+            targetDays: 180,
+            targetHours: 900
+        )
+        state.academicYears.append(year2024)
+
+        let alice = try state.addStudent(name: "Alice", gradeLevel: "4")
+        let bob = try state.addStudent(name: "Bob", gradeLevel: "2")
+
+        // Attendance across different dates
+        try state.confirmAttendance(studentID: alice, day: "2024-07-15", minutes: 60) // Before year
+        try state.confirmAttendance(studentID: alice, day: "2024-09-02", minutes: 180) // In year
+        try state.confirmAttendance(studentID: bob, day: "2024-09-02", minutes: 150) // In year
+        try state.confirmAttendance(studentID: alice, day: "2025-07-10", minutes: 60) // After year
+
+        // Activities
+        try state.logActivity(title: "Summer Camp", studentIDs: [alice], day: "2024-07-20", minutes: 120)
+        try state.logActivity(title: "Museum Tour", studentIDs: [alice, bob], day: "2024-10-15", minutes: 90)
+
+        // Assignments
+        let courseID = try state.addCourse(title: "Math", studentIDs: [alice], lessonTitles: ["Lesson 1", "Lesson 2"], startDay: nil)
+        let lessonIDs = Set(state.lessons.filter { $0.courseID == courseID }.map(\.id))
+        let assignments = state.assignments.filter { lessonIDs.contains($0.lessonID) }
+        try state.setAssignmentStatus(id: assignments[0].id, status: .completed, completedDay: "2024-07-25") // Before year
+        try state.setAssignmentStatus(id: assignments[1].id, status: .completed, completedDay: "2024-10-01") // In year
+
+        // Query scoping for all students
+        let yearAttendanceAll = state.attendance(for: nil, in: year2024)
+        XCTAssertEqual(yearAttendanceAll.count, 2)
+
+        // Query scoping for alice
+        let yearAttendanceAlice = state.attendance(for: alice, in: year2024)
+        XCTAssertEqual(yearAttendanceAlice.count, 1)
+        XCTAssertEqual(yearAttendanceAlice.first?.day, "2024-09-02")
+
+        // Activities scoping
+        let yearActivitiesAll = state.activities(for: nil, in: year2024)
+        XCTAssertEqual(yearActivitiesAll.count, 2) // alice and bob museum tour
+        let yearActivitiesAlice = state.activities(for: alice, in: year2024)
+        XCTAssertEqual(yearActivitiesAlice.count, 1)
+        XCTAssertEqual(yearActivitiesAlice.first?.title, "Museum Tour")
+
+        // Completed assignments scoping
+        let yearAssignments = state.completedAssignments(for: alice, in: year2024)
+        XCTAssertEqual(yearAssignments.count, 1)
+        XCTAssertEqual(yearAssignments.first?.id, assignments[1].id)
+    }
+
+    func testBackwardCompatibleDecodingWithoutAcademicYears() throws {
+        // Old schema JSON missing academicYears, terms, activeYearID
+        let legacyJSON = """
+        {
+          "schemaVersion": 1,
+          "students": [
+            { "id": "11111111-1111-1111-1111-111111111111", "name": "Alice", "gradeLevel": "4" }
+          ],
+          "courses": [],
+          "lessons": [],
+          "assignments": [],
+          "attendance": [],
+          "activities": []
+        }
+        """
+        let data = legacyJSON.data(using: .utf8)!
+        let decoder = JSONDecoder()
+        let decodedState = try decoder.decode(SchoolState.self, from: data)
+
+        XCTAssertEqual(decodedState.students.count, 1)
+        XCTAssertEqual(decodedState.students.first?.name, "Alice")
+        XCTAssertTrue(decodedState.academicYears.isEmpty)
+        XCTAssertTrue(decodedState.terms.isEmpty)
+        XCTAssertNil(decodedState.activeYearID)
+        XCTAssertNoThrow(try decodedState.validate())
+
+        // Default academic year resolution still works gracefully
+        let resolved = decodedState.resolvedActiveAcademicYear()
+        XCTAssertFalse(resolved.title.isEmpty)
+        XCTAssertEqual(resolved.targetDays, 180)
+    }
 }
+

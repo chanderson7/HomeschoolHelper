@@ -98,6 +98,61 @@ public struct LearningActivity: Codable, Equatable, Sendable, Identifiable {
     }
 }
 
+public struct AcademicYear: Codable, Equatable, Sendable, Identifiable {
+    public var id: UUID
+    public var title: String
+    public var startDay: String
+    public var endDay: String
+    public var targetDays: Int
+    public var targetHours: Int?
+
+    public init(
+        id: UUID = UUID(),
+        title: String,
+        startDay: String,
+        endDay: String,
+        targetDays: Int = 180,
+        targetHours: Int? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.startDay = startDay
+        self.endDay = endDay
+        self.targetDays = targetDays
+        self.targetHours = targetHours
+    }
+
+    public func contains(day: String) -> Bool {
+        day >= startDay && day <= endDay
+    }
+}
+
+public struct AcademicTerm: Codable, Equatable, Sendable, Identifiable {
+    public var id: UUID
+    public var academicYearID: UUID
+    public var title: String
+    public var startDay: String
+    public var endDay: String
+
+    public init(
+        id: UUID = UUID(),
+        academicYearID: UUID,
+        title: String,
+        startDay: String,
+        endDay: String
+    ) {
+        self.id = id
+        self.academicYearID = academicYearID
+        self.title = title
+        self.startDay = startDay
+        self.endDay = endDay
+    }
+
+    public func contains(day: String) -> Bool {
+        day >= startDay && day <= endDay
+    }
+}
+
 public enum SchoolStateError: LocalizedError, Equatable, Sendable {
     case unsupportedSchema(Int)
     case invalidValue(String)
@@ -107,6 +162,8 @@ public enum SchoolStateError: LocalizedError, Equatable, Sendable {
     case unknownLesson(UUID)
     case unknownAttendance(UUID)
     case unknownActivity(UUID)
+    case unknownAcademicYear(UUID)
+    case unknownAcademicTerm(UUID)
     case invalidDate(String)
     case invalidMinutes(Int, allowed: ClosedRange<Int>)
     case duplicateID(String)
@@ -131,6 +188,10 @@ public enum SchoolStateError: LocalizedError, Equatable, Sendable {
             return "That attendance record no longer exists. Refresh records and try again."
         case .unknownActivity:
             return "That activity no longer exists. Refresh records and try again."
+        case .unknownAcademicYear:
+            return "That academic year no longer exists. Refresh records and try again."
+        case .unknownAcademicTerm:
+            return "That term no longer exists. Refresh records and try again."
         case .invalidDate(let value):
             return "\"\(value)\" is not a valid Gregorian date. Use YYYY-MM-DD."
         case .invalidMinutes(let minutes, let allowed):
@@ -153,6 +214,22 @@ public struct SchoolState: Codable, Equatable, Sendable {
     public var assignments: [Assignment]
     public var attendance: [AttendanceEntry]
     public var activities: [LearningActivity]
+    public var academicYears: [AcademicYear]
+    public var terms: [AcademicTerm]
+    public var activeYearID: UUID?
+
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion
+        case students
+        case courses
+        case lessons
+        case assignments
+        case attendance
+        case activities
+        case academicYears
+        case terms
+        case activeYearID
+    }
 
     public init(
         schemaVersion: Int = 1,
@@ -161,7 +238,10 @@ public struct SchoolState: Codable, Equatable, Sendable {
         lessons: [Lesson] = [],
         assignments: [Assignment] = [],
         attendance: [AttendanceEntry] = [],
-        activities: [LearningActivity] = []
+        activities: [LearningActivity] = [],
+        academicYears: [AcademicYear] = [],
+        terms: [AcademicTerm] = [],
+        activeYearID: UUID? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.students = students
@@ -170,6 +250,37 @@ public struct SchoolState: Codable, Equatable, Sendable {
         self.assignments = assignments
         self.attendance = attendance
         self.activities = activities
+        self.academicYears = academicYears
+        self.terms = terms
+        self.activeYearID = activeYearID
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        self.students = try container.decode([Student].self, forKey: .students)
+        self.courses = try container.decode([Course].self, forKey: .courses)
+        self.lessons = try container.decode([Lesson].self, forKey: .lessons)
+        self.assignments = try container.decode([Assignment].self, forKey: .assignments)
+        self.attendance = try container.decode([AttendanceEntry].self, forKey: .attendance)
+        self.activities = try container.decode([LearningActivity].self, forKey: .activities)
+        self.academicYears = try container.decodeIfPresent([AcademicYear].self, forKey: .academicYears) ?? []
+        self.terms = try container.decodeIfPresent([AcademicTerm].self, forKey: .terms) ?? []
+        self.activeYearID = try container.decodeIfPresent(UUID.self, forKey: .activeYearID)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(schemaVersion, forKey: .schemaVersion)
+        try container.encode(students, forKey: .students)
+        try container.encode(courses, forKey: .courses)
+        try container.encode(lessons, forKey: .lessons)
+        try container.encode(assignments, forKey: .assignments)
+        try container.encode(attendance, forKey: .attendance)
+        try container.encode(activities, forKey: .activities)
+        try container.encode(academicYears, forKey: .academicYears)
+        try container.encode(terms, forKey: .terms)
+        try container.encodeIfPresent(activeYearID, forKey: .activeYearID)
     }
 
     public func validate() throws {
@@ -181,6 +292,8 @@ public struct SchoolState: Codable, Equatable, Sendable {
         try validateUniqueIDs(assignments.map(\.id), collection: "assignments")
         try validateUniqueIDs(attendance.map(\.id), collection: "attendance")
         try validateUniqueIDs(activities.map(\.id), collection: "activities")
+        try validateUniqueIDs(academicYears.map(\.id), collection: "academic years")
+        try validateUniqueIDs(terms.map(\.id), collection: "terms")
 
         let studentIDs = Set(students.map(\.id))
         let courseIDs = Set(courses.map(\.id))
@@ -248,6 +361,42 @@ public struct SchoolState: Codable, Equatable, Sendable {
             try validateRequiredText(activity.title, field: "Activity title")
             try validateDay(activity.day)
             try validateMinutes(activity.minutes, allowed: 0...1440)
+        }
+
+        let academicYearIDs = Set(academicYears.map(\.id))
+        for year in academicYears {
+            try validateRequiredText(year.title, field: "Academic year title")
+            try validateDay(year.startDay)
+            try validateDay(year.endDay)
+            guard year.startDay < year.endDay else {
+                throw SchoolStateError.invalidValue("Academic year start date must precede end date.")
+            }
+            guard year.targetDays > 0 && year.targetDays <= 365 else {
+                throw SchoolStateError.invalidValue("Target school days must be between 1 and 365.")
+            }
+            if let hours = year.targetHours {
+                guard hours > 0 && hours <= 3000 else {
+                    throw SchoolStateError.invalidValue("Target instructional hours must be between 1 and 3000.")
+                }
+            }
+        }
+
+        for term in terms {
+            guard academicYearIDs.contains(term.academicYearID) else {
+                throw SchoolStateError.danglingReference("A term refers to a missing academic year")
+            }
+            try validateRequiredText(term.title, field: "Term title")
+            try validateDay(term.startDay)
+            try validateDay(term.endDay)
+            guard term.startDay < term.endDay else {
+                throw SchoolStateError.invalidValue("Term start date must precede end date.")
+            }
+        }
+
+        if let activeYearID {
+            guard academicYearIDs.contains(activeYearID) else {
+                throw SchoolStateError.danglingReference("Active academic year refers to a missing year")
+            }
         }
     }
 
@@ -571,6 +720,184 @@ public struct SchoolState: Codable, Equatable, Sendable {
         }
         activities.remove(at: index)
         try validate()
+    }
+
+    public static func defaultAcademicYear(for date: Date = Date()) -> AcademicYear {
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = TimeZone(secondsFromGMT: 0)!
+        let year = gregorian.component(.year, from: date)
+        let month = gregorian.component(.month, from: date)
+        let startYear = month >= 7 ? year : year - 1
+        let endYear = startYear + 1
+        return AcademicYear(
+            title: "\(startYear)–\(endYear)",
+            startDay: String(format: "%04d-08-01", startYear),
+            endDay: String(format: "%04d-06-30", endYear),
+            targetDays: 180,
+            targetHours: 900
+        )
+    }
+
+    public func resolvedActiveAcademicYear(for date: Date = Date()) -> AcademicYear {
+        if let activeYearID, let year = academicYears.first(where: { $0.id == activeYearID }) {
+            return year
+        }
+        let todayStr = SchoolDay.string(from: date)
+        if let yearForToday = academicYears.first(where: { $0.contains(day: todayStr) }) {
+            return yearForToday
+        }
+        if let first = academicYears.first {
+            return first
+        }
+        return Self.defaultAcademicYear(for: date)
+    }
+
+    @discardableResult
+    public mutating func addAcademicYear(
+        title: String,
+        startDay: String,
+        endDay: String,
+        targetDays: Int = 180,
+        targetHours: Int? = nil,
+        makeActive: Bool = false
+    ) throws -> UUID {
+        try validate()
+        let cleanedTitle = try cleanedRequiredText(title, field: "Academic year title")
+        try validateDay(startDay)
+        try validateDay(endDay)
+        guard startDay < endDay else {
+            throw SchoolStateError.invalidValue("Academic year start date must precede end date.")
+        }
+        guard targetDays > 0 && targetDays <= 365 else {
+            throw SchoolStateError.invalidValue("Target school days must be between 1 and 365.")
+        }
+        if let targetHours {
+            guard targetHours > 0 && targetHours <= 3000 else {
+                throw SchoolStateError.invalidValue("Target instructional hours must be between 1 and 3000.")
+            }
+        }
+        let year = AcademicYear(
+            title: cleanedTitle,
+            startDay: startDay,
+            endDay: endDay,
+            targetDays: targetDays,
+            targetHours: targetHours
+        )
+        academicYears.append(year)
+        if makeActive || activeYearID == nil {
+            activeYearID = year.id
+        }
+        try validate()
+        return year.id
+    }
+
+    public mutating func updateAcademicYear(
+        id: UUID,
+        title: String,
+        startDay: String,
+        endDay: String,
+        targetDays: Int,
+        targetHours: Int?
+    ) throws {
+        try validate()
+        guard let index = academicYears.firstIndex(where: { $0.id == id }) else {
+            throw SchoolStateError.unknownAcademicYear(id)
+        }
+        let cleanedTitle = try cleanedRequiredText(title, field: "Academic year title")
+        try validateDay(startDay)
+        try validateDay(endDay)
+        guard startDay < endDay else {
+            throw SchoolStateError.invalidValue("Academic year start date must precede end date.")
+        }
+        guard targetDays > 0 && targetDays <= 365 else {
+            throw SchoolStateError.invalidValue("Target school days must be between 1 and 365.")
+        }
+        if let targetHours {
+            guard targetHours > 0 && targetHours <= 3000 else {
+                throw SchoolStateError.invalidValue("Target instructional hours must be between 1 and 3000.")
+            }
+        }
+        academicYears[index].title = cleanedTitle
+        academicYears[index].startDay = startDay
+        academicYears[index].endDay = endDay
+        academicYears[index].targetDays = targetDays
+        academicYears[index].targetHours = targetHours
+        try validate()
+    }
+
+    public mutating func deleteAcademicYear(id: UUID) throws {
+        try validate()
+        guard let index = academicYears.firstIndex(where: { $0.id == id }) else {
+            throw SchoolStateError.unknownAcademicYear(id)
+        }
+        academicYears.remove(at: index)
+        terms.removeAll { $0.academicYearID == id }
+        if activeYearID == id {
+            activeYearID = academicYears.first?.id
+        }
+        try validate()
+    }
+
+    public mutating func setActiveAcademicYear(id: UUID?) throws {
+        try validate()
+        if let id {
+            guard academicYears.contains(where: { $0.id == id }) else {
+                throw SchoolStateError.unknownAcademicYear(id)
+            }
+        }
+        activeYearID = id
+        try validate()
+    }
+
+    @discardableResult
+    public mutating func addTerm(
+        yearID: UUID,
+        title: String,
+        startDay: String,
+        endDay: String
+    ) throws -> UUID {
+        try validate()
+        guard academicYears.contains(where: { $0.id == yearID }) else {
+            throw SchoolStateError.unknownAcademicYear(yearID)
+        }
+        let cleanedTitle = try cleanedRequiredText(title, field: "Term title")
+        try validateDay(startDay)
+        try validateDay(endDay)
+        guard startDay < endDay else {
+            throw SchoolStateError.invalidValue("Term start date must precede end date.")
+        }
+        let term = AcademicTerm(academicYearID: yearID, title: cleanedTitle, startDay: startDay, endDay: endDay)
+        terms.append(term)
+        try validate()
+        return term.id
+    }
+
+    public mutating func deleteTerm(id: UUID) throws {
+        try validate()
+        guard let index = terms.firstIndex(where: { $0.id == id }) else {
+            throw SchoolStateError.unknownAcademicTerm(id)
+        }
+        terms.remove(at: index)
+        try validate()
+    }
+
+    public func attendance(for studentID: UUID? = nil, in year: AcademicYear) -> [AttendanceEntry] {
+        attendance.filter { entry in
+            (studentID == nil || entry.studentID == studentID) && year.contains(day: entry.day)
+        }
+    }
+
+    public func activities(for studentID: UUID? = nil, in year: AcademicYear) -> [LearningActivity] {
+        activities.filter { activity in
+            (studentID == nil || activity.studentID == studentID) && year.contains(day: activity.day)
+        }
+    }
+
+    public func completedAssignments(for studentID: UUID? = nil, in year: AcademicYear) -> [Assignment] {
+        assignments.filter { assignment in
+            guard assignment.status == .completed, let completedDay = assignment.completedDay else { return false }
+            return (studentID == nil || assignment.studentID == studentID) && year.contains(day: completedDay)
+        }
     }
 }
 

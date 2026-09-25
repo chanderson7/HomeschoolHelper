@@ -263,6 +263,75 @@ final class HomeschoolStoreTests: XCTestCase {
             XCTAssertNil(store.activity(for: activity.id))
         }
     }
+
+    func testAcademicYearAndTermCRUDInStore() async {
+        let repository = InMemorySchoolRepository(state: SchoolState())
+        await MainActor.run {
+            let store = HomeschoolStore(repository: repository)
+            _ = store.addStudent(name: "Charlie", gradeLevel: "3")
+            let student = store.state.students[0]
+
+            // Add academic year
+            let addedYear = store.addAcademicYear(
+                title: "2024–2025",
+                startDay: "2024-08-01",
+                endDay: "2025-06-30",
+                targetDays: 180,
+                targetHours: 900,
+                makeActive: true
+            )
+            XCTAssertTrue(addedYear)
+            XCTAssertEqual(store.state.academicYears.count, 1)
+            let year = store.state.academicYears[0]
+            XCTAssertEqual(store.activeAcademicYear.id, year.id)
+            XCTAssertEqual(store.academicYear(for: year.id)?.title, "2024–2025")
+
+            // Update academic year
+            let updatedYear = store.updateAcademicYear(
+                id: year.id,
+                title: "2024–2025 Year",
+                startDay: "2024-08-15",
+                endDay: "2025-06-15",
+                targetDays: 175,
+                targetHours: 875
+            )
+            XCTAssertTrue(updatedYear)
+            XCTAssertEqual(store.academicYear(for: year.id)?.title, "2024–2025 Year")
+            XCTAssertEqual(store.academicYear(for: year.id)?.targetDays, 175)
+
+            // Add term
+            let addedTerm = store.addTerm(
+                yearID: year.id,
+                title: "Fall Semester",
+                startDay: "2024-08-15",
+                endDay: "2024-12-20"
+            )
+            XCTAssertTrue(addedTerm)
+            XCTAssertEqual(store.terms(for: year.id).count, 1)
+            let term = store.terms(for: year.id)[0]
+            XCTAssertEqual(term.title, "Fall Semester")
+
+            // Attendance and scoping
+            _ = store.confirmAttendance(studentID: student.id, day: "2024-09-10", minutes: 120)
+            _ = store.confirmAttendance(studentID: student.id, day: "2024-09-11", minutes: 180)
+            _ = store.confirmAttendance(studentID: student.id, day: "2024-07-01", minutes: 60) // Out of year
+
+            let currentYear = store.academicYear(for: year.id)!
+            XCTAssertEqual(store.attendance(for: student.id, in: currentYear).count, 2)
+            XCTAssertEqual(store.attendanceDaysCount(for: student.id, in: currentYear), 2)
+            XCTAssertEqual(store.instructionalMinutes(for: student.id, in: currentYear), 300)
+
+            // Delete term
+            let deletedTerm = store.deleteTerm(id: term.id)
+            XCTAssertTrue(deletedTerm)
+            XCTAssertTrue(store.terms(for: year.id).isEmpty)
+
+            // Delete year
+            let deletedYear = store.deleteAcademicYear(id: year.id)
+            XCTAssertTrue(deletedYear)
+            XCTAssertTrue(store.state.academicYears.isEmpty)
+        }
+    }
 }
 
 private enum FakeRepositoryError: LocalizedError, Sendable {

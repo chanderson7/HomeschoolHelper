@@ -16,7 +16,19 @@ let package = Package(
             name: "HomeschoolPresentation",
             dependencies: ["HomeschoolCore"],
             path: "iOS/HomeSchoolHelper",
-            exclude: ["HomeSchoolHelperApp.swift", "HomeTabView.swift", "OnboardingView.swift", "AuthRootView.swift", "LoginView.swift", "AccountView.swift", "SupabaseConfiguration.swift"],
+            exclude: [
+                "HomeSchoolHelperApp.swift",
+                "HomeTabView.swift",
+                "OnboardingView.swift",
+                "AuthRootView.swift",
+                "LoginView.swift",
+                "AccountView.swift",
+                "SupabaseConfiguration.swift",
+                "LegalContent.swift",
+                "LegalDocumentView.swift",
+                "SettingsView.swift",
+                "HomeschoolReports.swift"
+            ],
             sources: ["HomeschoolStore.swift"]
         ),
         .testTarget(name: "HomeschoolCoreTests", dependencies: ["HomeschoolCore"]),
