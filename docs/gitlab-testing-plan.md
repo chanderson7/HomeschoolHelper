@@ -18,7 +18,7 @@ unit_tests:
     DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
   script:
     - mkdir -p test-results
-    - sh scripts/test-core.sh --force-resolved-versions --enable-code-coverage --xunit-output test-results/unit-tests.xml
+    - sh scripts/test-core.sh --force-resolved-versions --parallel --num-workers 2 --enable-code-coverage --xunit-output test-results/unit-tests.xml
   artifacts:
     when: always
     expire_in: 7 days
