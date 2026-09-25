@@ -50,7 +50,7 @@ create policy "Users can read their own non-anonymous backups"
     to authenticated
     using (
         (select auth.uid()) = user_id
-        and (select auth.jwt() ->> 'is_anonymous') = 'false'
+        and coalesce((select auth.jwt() ->> 'is_anonymous'), 'false') = 'false'
     );
 
 create policy "Users can create their own non-anonymous backups"
@@ -59,7 +59,7 @@ create policy "Users can create their own non-anonymous backups"
     to authenticated
     with check (
         (select auth.uid()) = user_id
-        and (select auth.jwt() ->> 'is_anonymous') = 'false'
+        and coalesce((select auth.jwt() ->> 'is_anonymous'), 'false') = 'false'
     );
 
 create policy "Users can delete their own non-anonymous backups"
@@ -68,5 +68,5 @@ create policy "Users can delete their own non-anonymous backups"
     to authenticated
     using (
         (select auth.uid()) = user_id
-        and (select auth.jwt() ->> 'is_anonymous') = 'false'
+        and coalesce((select auth.jwt() ->> 'is_anonymous'), 'false') = 'false'
     );
