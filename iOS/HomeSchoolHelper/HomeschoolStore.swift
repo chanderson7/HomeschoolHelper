@@ -452,6 +452,139 @@ final class HomeschoolStore: ObservableObject {
         return state.portfolioItems(for: studentID, courseID: courseID, in: targetYear)
     }
 
+    // MARK: - Book & Reading Log Operations
+
+    @discardableResult
+    func addBook(
+        studentID: UUID,
+        title: String,
+        author: String,
+        genre: String? = nil,
+        format: BookFormat = .physical,
+        status: BookStatus = .reading,
+        totalPages: Int? = nil,
+        currentPage: Int? = nil,
+        rating: Int? = nil,
+        notes: String? = nil,
+        startDay: String? = nil,
+        completedDay: String? = nil,
+        academicYearID: UUID? = nil
+    ) -> Bool {
+        update("add book") { state in
+            _ = try state.addBook(
+                studentID: studentID,
+                title: title,
+                author: author,
+                genre: genre,
+                format: format,
+                status: status,
+                totalPages: totalPages,
+                currentPage: currentPage,
+                rating: rating,
+                notes: notes,
+                startDay: startDay,
+                completedDay: completedDay,
+                academicYearID: academicYearID
+            )
+        }
+    }
+
+    @discardableResult
+    func updateBook(
+        id: UUID,
+        title: String? = nil,
+        author: String? = nil,
+        genre: String? = nil,
+        format: BookFormat? = nil,
+        status: BookStatus? = nil,
+        totalPages: Int? = nil,
+        currentPage: Int? = nil,
+        rating: Int? = nil,
+        notes: String? = nil,
+        startDay: String? = nil,
+        completedDay: String? = nil,
+        academicYearID: UUID? = nil
+    ) -> Bool {
+        update("update book") { state in
+            try state.updateBook(
+                id: id,
+                title: title,
+                author: author,
+                genre: genre,
+                format: format,
+                status: status,
+                totalPages: totalPages,
+                currentPage: currentPage,
+                rating: rating,
+                notes: notes,
+                startDay: startDay,
+                completedDay: completedDay,
+                academicYearID: academicYearID
+            )
+        }
+    }
+
+    @discardableResult
+    func deleteBook(id: UUID) -> Bool {
+        update("delete book") { state in
+            try state.deleteBook(id: id)
+        }
+    }
+
+    @discardableResult
+    func addReadingLogEntry(
+        bookID: UUID,
+        studentID: UUID,
+        day: String,
+        minutes: Int,
+        pagesRead: Int? = nil,
+        notes: String? = nil,
+        logToAttendance: Bool = false
+    ) -> Bool {
+        update("log reading session") { state in
+            _ = try state.addReadingLogEntry(
+                bookID: bookID,
+                studentID: studentID,
+                day: day,
+                minutes: minutes,
+                pagesRead: pagesRead,
+                notes: notes,
+                logToAttendance: logToAttendance
+            )
+        }
+    }
+
+    @discardableResult
+    func deleteReadingLogEntry(id: UUID) -> Bool {
+        update("delete reading session") { state in
+            try state.deleteReadingLogEntry(id: id)
+        }
+    }
+
+    func books(
+        for studentID: UUID? = nil,
+        status: BookStatus? = nil,
+        in year: AcademicYear? = nil
+    ) -> [BookEntry] {
+        state.books(for: studentID, status: status, in: year)
+    }
+
+    func readingLogs(
+        for studentID: UUID? = nil,
+        bookID: UUID? = nil,
+        in year: AcademicYear? = nil
+    ) -> [ReadingLogEntry] {
+        state.readingLogs(for: studentID, bookID: bookID, in: year)
+    }
+
+    func totalReadingMinutes(for studentID: UUID? = nil, in year: AcademicYear? = nil) -> Int {
+        readingLogs(for: studentID, in: year).reduce(0) { $0 + $1.minutes }
+    }
+
+    func totalBooksCompleted(for studentID: UUID? = nil, in year: AcademicYear? = nil) -> Int {
+        books(for: studentID, status: .completed, in: year).count
+    }
+
     var activeAcademicYear: AcademicYear {
         state.resolvedActiveAcademicYear()
     }

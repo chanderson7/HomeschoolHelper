@@ -5,6 +5,7 @@ struct StudentModeView: View {
     @EnvironmentObject private var store: HomeschoolStore
     @State private var showingExitPINSheet = false
     @State private var selectedStudentID: UUID?
+    @State private var loggingBook: BookEntry?
 
     private var students: [Student] {
         store.state.students
@@ -18,6 +19,11 @@ struct StudentModeView: View {
             return match
         }
         return students.first
+    }
+
+    private var activeBooks: [BookEntry] {
+        guard let activeStudent else { return [] }
+        return store.books(for: activeStudent.id, status: .reading)
     }
 
     private var todayAssignments: [Assignment] {
@@ -155,6 +161,11 @@ struct StudentModeView: View {
                             }
                             .padding(.horizontal)
                         }
+
+                        // Reading Shelf
+                        if !activeBooks.isEmpty {
+                            readingShelfSection
+                        }
                     }
                     .padding(.vertical)
                 }
@@ -187,7 +198,76 @@ struct StudentModeView: View {
             .sheet(isPresented: $showingExitPINSheet) {
                 ExitStudentModePINSheet()
             }
+            .sheet(item: $loggingBook) { book in
+                LogReadingSessionView(book: book)
+            }
         }
+    }
+
+    @ViewBuilder
+    private var readingShelfSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label("MY READING SHELF", systemImage: "books.vertical.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Sage.accent)
+                Spacer()
+            }
+            .padding(.horizontal)
+
+            VStack(spacing: 10) {
+                ForEach(activeBooks) { book in
+                    HStack(spacing: 12) {
+                        Image(systemName: book.format.systemImage)
+                            .font(.title3)
+                            .foregroundStyle(Sage.accent)
+                            .frame(width: 32)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(book.title)
+                                .font(.subheadline.weight(.semibold))
+                                .lineLimit(1)
+                            Text(book.author)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                            if let cur = book.currentPage, let tot = book.totalPages, tot > 0 {
+                                ProgressView(value: min(1.0, Double(cur) / Double(tot)))
+                                    .tint(Sage.accent)
+                                    .padding(.top, 2)
+                                Text("Page \(cur) of \(tot)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Spacer()
+
+                        Button {
+                            loggingBook = book
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "clock")
+                                Text("Log")
+                            }
+                            .font(.caption.weight(.bold))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Sage.accent)
+                            .foregroundStyle(.white)
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("studentLogBook_\(book.id.uuidString)")
+                    }
+                    .padding(12)
+                    .background(Color(.secondarySystemGroupedBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+            .padding(.horizontal)
+        }
+        .padding(.top, 8)
     }
 
     private var greetingText: String {

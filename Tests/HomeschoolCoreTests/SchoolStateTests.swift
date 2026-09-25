@@ -979,5 +979,182 @@ final class SchoolStateTests: XCTestCase {
         XCTAssertTrue(ics.contains("DTEND;VALUE=DATE:20260902"))
         XCTAssertTrue(ics.contains("STATUS:TENTATIVE"))
     }
+
+    func testBookCRUDAndValidation() throws {
+        var state = SchoolState()
+        let aliceID = try state.addStudent(name: "Alice", gradeLevel: "4")
+
+        let bookID = try state.addBook(
+            studentID: aliceID,
+            title: "Charlotte's Web",
+            author: "E.B. White",
+            genre: "Classic Literature",
+            format: .physical,
+            status: .reading,
+            totalPages: 184,
+            currentPage: 25,
+            rating: nil,
+            notes: "Reading with dad",
+            startDay: "2026-09-01"
+        )
+
+        XCTAssertEqual(state.books.count, 1)
+        let book = try XCTUnwrap(state.books.first)
+        XCTAssertEqual(book.title, "Charlotte's Web")
+        XCTAssertEqual(book.author, "E.B. White")
+        XCTAssertEqual(book.totalPages, 184)
+        XCTAssertEqual(book.currentPage, 25)
+        XCTAssertEqual(book.status, .reading)
+
+        // Update book
+        try state.updateBook(
+            id: bookID,
+            currentPage: 184,
+            rating: 5,
+            notes: "Finished! Beautiful ending.",
+            completedDay: "2026-09-15"
+        )
+        let updated = try XCTUnwrap(state.books.first)
+        XCTAssertEqual(updated.currentPage, 184)
+        XCTAssertEqual(updated.rating, 5)
+        XCTAssertEqual(updated.completedDay, "2026-09-15")
+
+        // Validation errors
+        XCTAssertThrowsError(try state.addBook(studentID: UUID(), title: "Test", author: "Author"))
+        XCTAssertThrowsError(try state.addBook(studentID: aliceID, title: "", author: "Author"))
+        XCTAssertThrowsError(try state.addBook(studentID: aliceID, title: "Test", author: ""))
+        XCTAssertThrowsError(try state.addBook(studentID: aliceID, title: "Test", author: "Author", totalPages: -10))
+        XCTAssertThrowsError(try state.addBook(studentID: aliceID, title: "Test", author: "Author", rating: 6))
+        XCTAssertThrowsError(try state.addBook(studentID: aliceID, title: "Test", author: "Author", startDay: "invalid-date"))
+
+        // Delete book
+        try state.deleteBook(id: bookID)
+        XCTAssertEqual(state.books.count, 0)
+    }
+
+    func testReadingLogEntryWithAutoAttendance() throws {
+        var state = SchoolState()
+        let aliceID = try state.addStudent(name: "Alice", gradeLevel: "4")
+        let bookID = try state.addBook(
+            studentID: aliceID,
+            title: "The Hobbit",
+            author: "J.R.R. Tolkien",
+            totalPages: 310,
+            currentPage: 50,
+            startDay: "2026-09-01"
+        )
+
+        // Log reading session with attendance auto-generation
+        let logID = try state.addReadingLogEntry(
+            bookID: bookID,
+            studentID: aliceID,
+            day: "2026-09-10",
+            minutes: 45,
+            pagesRead: 30,
+            notes: "Read chapter 3",
+            logToAttendance: true
+        )
+
+        XCTAssertEqual(state.readingLogs.count, 1)
+        let log = try XCTUnwrap(state.readingLogs.first)
+        XCTAssertEqual(log.minutes, 45)
+        XCTAssertEqual(log.pagesRead, 30)
+        XCTAssertNotNil(log.activityID)
+
+        // Verifies learning activity was created
+        XCTAssertEqual(state.activities.count, 1)
+        let activity = try XCTUnwrap(state.activities.first)
+        XCTAssertEqual(activity.id, log.activityID)
+        XCTAssertEqual(activity.title, "Reading: The Hobbit")
+        XCTAssertEqual(activity.minutes, 45)
+
+        // Verifies book's currentPage updated to 50 + 30 = 80
+        let book = try XCTUnwrap(state.books.first)
+        XCTAssertEqual(book.currentPage, 80)
+        XCTAssertEqual(book.status, .reading)
+
+        // Log session that completes the book
+        _ = try state.addReadingLogEntry(
+            bookID: bookID,
+            studentID: aliceID,
+            day: "2026-09-15",
+            minutes: 60,
+            pagesRead: 230,
+            logToAttendance: false
+        )
+        let completedBook = try XCTUnwrap(state.books.first)
+        XCTAssertEqual(completedBook.currentPage, 310)
+        XCTAssertEqual(completedBook.status, .completed)
+        XCTAssertEqual(completedBook.completedDay, "2026-09-15")
+
+        // Delete first reading log removes its linked activity
+        try state.deleteReadingLogEntry(id: logID)
+        XCTAssertEqual(state.readingLogs.count, 1)
+        XCTAssertEqual(state.activities.count, 0)
+    }
+
+    func testStudentDeletionCascadesToBooksAndReadingLogs() throws {
+        var state = SchoolState()
+        let aliceID = try state.addStudent(name: "Alice", gradeLevel: "4")
+        let bobID = try state.addStudent(name: "Bob", gradeLevel: "2")
+
+        let aliceBook = try state.addBook(studentID: aliceID, title: "Alice's Adventures", author: "Lewis Carroll")
+        let bobBook = try state.addBook(studentID: bobID, title: "Winnie the Pooh", author: "A.A. Milne")
+
+        _ = try state.addReadingLogEntry(bookID: aliceBook, studentID: aliceID, day: "2026-09-02", minutes: 30)
+        _ = try state.addReadingLogEntry(bookID: bobBook, studentID: bobID, day: "2026-09-02", minutes: 20)
+
+        XCTAssertEqual(state.books.count, 2)
+        XCTAssertEqual(state.readingLogs.count, 2)
+
+        // Delete Alice
+        try state.deleteStudent(id: aliceID)
+        XCTAssertEqual(state.books.count, 1)
+        XCTAssertEqual(state.books.first?.studentID, bobID)
+        XCTAssertEqual(state.readingLogs.count, 1)
+        XCTAssertEqual(state.readingLogs.first?.studentID, bobID)
+    }
+
+    func testBookDeletionCascadesToReadingLogs() throws {
+        var state = SchoolState()
+        let aliceID = try state.addStudent(name: "Alice", gradeLevel: "4")
+        let bookID = try state.addBook(studentID: aliceID, title: "Book One", author: "Author One")
+
+        _ = try state.addReadingLogEntry(bookID: bookID, studentID: aliceID, day: "2026-09-01", minutes: 25)
+        _ = try state.addReadingLogEntry(bookID: bookID, studentID: aliceID, day: "2026-09-02", minutes: 35)
+
+        XCTAssertEqual(state.readingLogs.count, 2)
+
+        try state.deleteBook(id: bookID)
+        XCTAssertEqual(state.books.count, 0)
+        XCTAssertEqual(state.readingLogs.count, 0)
+    }
+
+    func testBackwardCompatibilityWithBooksAndReadingLogs() throws {
+        let jsonWithoutBooks = """
+        {
+            "schemaVersion": 1,
+            "students": [
+                {
+                    "id": "11111111-1111-1111-1111-111111111111",
+                    "name": "Clara",
+                    "gradeLevel": "3"
+                }
+            ],
+            "courses": [],
+            "lessons": [],
+            "assignments": [],
+            "attendance": [],
+            "activities": []
+        }
+        """
+
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(SchoolState.self, from: Data(jsonWithoutBooks.utf8))
+        XCTAssertEqual(decoded.students.count, 1)
+        XCTAssertEqual(decoded.books.count, 0)
+        XCTAssertEqual(decoded.readingLogs.count, 0)
+        XCTAssertNoThrow(try decoded.validate())
+    }
 }
 

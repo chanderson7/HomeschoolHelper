@@ -440,6 +440,57 @@ final class HomeschoolStoreTests: XCTestCase {
             XCTAssertTrue(syncCalled)
         }
     }
+
+    func testStoreBookAndReadingLogMutations() async {
+        let student = Student(name: "Ada", gradeLevel: "4")
+        let repository = InMemorySchoolRepository(state: SchoolState(students: [student]))
+        await MainActor.run {
+            let store = HomeschoolStore(repository: repository)
+
+            // Add book
+            XCTAssertTrue(store.addBook(
+                studentID: student.id,
+                title: "Little House in the Big Woods",
+                author: "Laura Ingalls Wilder",
+                genre: "Historical Fiction",
+                totalPages: 238,
+                currentPage: 10
+            ))
+            XCTAssertEqual(store.state.books.count, 1)
+            let book = store.state.books[0]
+            XCTAssertEqual(book.title, "Little House in the Big Woods")
+            XCTAssertEqual(store.books(for: student.id).count, 1)
+
+            // Update book
+            XCTAssertTrue(store.updateBook(id: book.id, currentPage: 50, rating: 4))
+            XCTAssertEqual(store.books(for: student.id).first?.currentPage, 50)
+            XCTAssertEqual(store.books(for: student.id).first?.rating, 4)
+
+            // Log reading session
+            XCTAssertTrue(store.addReadingLogEntry(
+                bookID: book.id,
+                studentID: student.id,
+                day: "2026-09-18",
+                minutes: 30,
+                pagesRead: 20,
+                logToAttendance: true
+            ))
+            XCTAssertEqual(store.state.readingLogs.count, 1)
+            XCTAssertEqual(store.readingLogs(for: student.id).count, 1)
+            XCTAssertEqual(store.totalReadingMinutes(for: student.id), 30)
+            XCTAssertEqual(store.books(for: student.id).first?.currentPage, 70)
+
+            // Delete reading log
+            let log = store.state.readingLogs[0]
+            XCTAssertTrue(store.deleteReadingLogEntry(id: log.id))
+            XCTAssertEqual(store.state.readingLogs.count, 0)
+            XCTAssertEqual(store.totalReadingMinutes(for: student.id), 0)
+
+            // Delete book
+            XCTAssertTrue(store.deleteBook(id: book.id))
+            XCTAssertEqual(store.state.books.count, 0)
+        }
+    }
 }
 
 private enum FakeRepositoryError: LocalizedError, Sendable {

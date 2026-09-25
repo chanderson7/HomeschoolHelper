@@ -263,6 +263,113 @@ public struct PortfolioItem: Codable, Equatable, Sendable, Identifiable {
     }
 }
 
+public enum BookFormat: String, Codable, CaseIterable, Sendable, Identifiable {
+    case physical = "Physical Book"
+    case audiobook = "Audiobook"
+    case ebook = "E-Book"
+    case readAloud = "Read Aloud"
+
+    public var id: String { rawValue }
+
+    public var systemImage: String {
+        switch self {
+        case .physical: return "book.closed"
+        case .audiobook: return "headphones"
+        case .ebook: return "ipad.and.iphone"
+        case .readAloud: return "person.2.wave.2"
+        }
+    }
+}
+
+public enum BookStatus: String, Codable, CaseIterable, Sendable, Identifiable {
+    case wantToRead = "Want to Read"
+    case reading = "Currently Reading"
+    case completed = "Completed"
+    case abandoned = "Did Not Finish"
+
+    public var id: String { rawValue }
+}
+
+public struct BookEntry: Codable, Equatable, Sendable, Identifiable {
+    public var id: UUID
+    public var studentID: UUID
+    public var title: String
+    public var author: String
+    public var genre: String?
+    public var format: BookFormat
+    public var status: BookStatus
+    public var totalPages: Int?
+    public var currentPage: Int?
+    public var rating: Int?
+    public var notes: String?
+    public var startDay: String?
+    public var completedDay: String?
+    public var academicYearID: UUID?
+
+    public init(
+        id: UUID = UUID(),
+        studentID: UUID,
+        title: String,
+        author: String,
+        genre: String? = nil,
+        format: BookFormat = .physical,
+        status: BookStatus = .reading,
+        totalPages: Int? = nil,
+        currentPage: Int? = nil,
+        rating: Int? = nil,
+        notes: String? = nil,
+        startDay: String? = nil,
+        completedDay: String? = nil,
+        academicYearID: UUID? = nil
+    ) {
+        self.id = id
+        self.studentID = studentID
+        self.title = title
+        self.author = author
+        self.genre = genre
+        self.format = format
+        self.status = status
+        self.totalPages = totalPages
+        self.currentPage = currentPage
+        self.rating = rating
+        self.notes = notes
+        self.startDay = startDay
+        self.completedDay = completedDay
+        self.academicYearID = academicYearID
+    }
+}
+
+public struct ReadingLogEntry: Codable, Equatable, Sendable, Identifiable {
+    public var id: UUID
+    public var bookID: UUID
+    public var studentID: UUID
+    public var day: String
+    public var minutes: Int
+    public var pagesRead: Int?
+    public var notes: String?
+    public var activityID: UUID?
+
+    public init(
+        id: UUID = UUID(),
+        bookID: UUID,
+        studentID: UUID,
+        day: String,
+        minutes: Int,
+        pagesRead: Int? = nil,
+        notes: String? = nil,
+        activityID: UUID? = nil
+    ) {
+        self.id = id
+        self.bookID = bookID
+        self.studentID = studentID
+        self.day = day
+        self.minutes = minutes
+        self.pagesRead = pagesRead
+        self.notes = notes
+        self.activityID = activityID
+    }
+}
+
 public struct PacedRescheduleResult: Codable, Equatable, Sendable {
     public let rescheduledCount: Int
     public let affectedCoursesCount: Int
@@ -368,6 +475,8 @@ public enum SchoolStateError: LocalizedError, Equatable, Sendable {
     case unknownAcademicYear(UUID)
     case unknownAcademicTerm(UUID)
     case unknownPortfolioItem(UUID)
+    case unknownBook(UUID)
+    case unknownReadingLog(UUID)
     case invalidDate(String)
     case invalidMinutes(Int, allowed: ClosedRange<Int>)
     case duplicateID(String)
@@ -398,6 +507,10 @@ public enum SchoolStateError: LocalizedError, Equatable, Sendable {
             return "That term no longer exists. Refresh records and try again."
         case .unknownPortfolioItem:
             return "That portfolio work sample no longer exists. Refresh records and try again."
+        case .unknownBook:
+            return "That book no longer exists. Refresh the reading log and try again."
+        case .unknownReadingLog:
+            return "That reading log entry no longer exists. Refresh the reading log and try again."
         case .invalidDate(let value):
             return "\"\(value)\" is not a valid Gregorian date. Use YYYY-MM-DD."
         case .invalidMinutes(let minutes, let allowed):
@@ -426,6 +539,8 @@ public struct SchoolState: Codable, Equatable, Sendable {
     public var parentPIN: String?
     public var selectedStateCode: String?
     public var portfolioItems: [PortfolioItem]
+    public var books: [BookEntry]
+    public var readingLogs: [ReadingLogEntry]
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion
@@ -441,6 +556,8 @@ public struct SchoolState: Codable, Equatable, Sendable {
         case parentPIN
         case selectedStateCode
         case portfolioItems
+        case books
+        case readingLogs
     }
 
     public init(
@@ -456,7 +573,9 @@ public struct SchoolState: Codable, Equatable, Sendable {
         activeYearID: UUID? = nil,
         parentPIN: String? = nil,
         selectedStateCode: String? = nil,
-        portfolioItems: [PortfolioItem] = []
+        portfolioItems: [PortfolioItem] = [],
+        books: [BookEntry] = [],
+        readingLogs: [ReadingLogEntry] = []
     ) {
         self.schemaVersion = schemaVersion
         self.students = students
@@ -471,6 +590,8 @@ public struct SchoolState: Codable, Equatable, Sendable {
         self.parentPIN = parentPIN
         self.selectedStateCode = selectedStateCode
         self.portfolioItems = portfolioItems
+        self.books = books
+        self.readingLogs = readingLogs
     }
 
     public init(from decoder: Decoder) throws {
@@ -488,6 +609,8 @@ public struct SchoolState: Codable, Equatable, Sendable {
         self.parentPIN = try container.decodeIfPresent(String.self, forKey: .parentPIN)
         self.selectedStateCode = try container.decodeIfPresent(String.self, forKey: .selectedStateCode)
         self.portfolioItems = try container.decodeIfPresent([PortfolioItem].self, forKey: .portfolioItems) ?? []
+        self.books = try container.decodeIfPresent([BookEntry].self, forKey: .books) ?? []
+        self.readingLogs = try container.decodeIfPresent([ReadingLogEntry].self, forKey: .readingLogs) ?? []
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -505,6 +628,8 @@ public struct SchoolState: Codable, Equatable, Sendable {
         try container.encodeIfPresent(parentPIN, forKey: .parentPIN)
         try container.encodeIfPresent(selectedStateCode, forKey: .selectedStateCode)
         try container.encode(portfolioItems, forKey: .portfolioItems)
+        try container.encode(books, forKey: .books)
+        try container.encode(readingLogs, forKey: .readingLogs)
     }
 
     public func validate() throws {
@@ -525,6 +650,8 @@ public struct SchoolState: Codable, Equatable, Sendable {
         try validateUniqueIDs(academicYears.map(\.id), collection: "academic years")
         try validateUniqueIDs(terms.map(\.id), collection: "terms")
         try validateUniqueIDs(portfolioItems.map(\.id), collection: "portfolio items")
+        try validateUniqueIDs(books.map(\.id), collection: "books")
+        try validateUniqueIDs(readingLogs.map(\.id), collection: "reading logs")
 
         let studentIDs = Set(students.map(\.id))
         let courseIDs = Set(courses.map(\.id))
@@ -667,6 +794,64 @@ public struct SchoolState: Codable, Equatable, Sendable {
             if let activityID = item.activityID {
                 guard activityIDs.contains(activityID) else {
                     throw SchoolStateError.danglingReference("A portfolio item refers to a missing activity")
+                }
+            }
+        }
+
+        let bookIDs = Set(books.map(\.id))
+        for book in books {
+            guard studentIDs.contains(book.studentID) else {
+                throw SchoolStateError.danglingReference("A book refers to a missing student")
+            }
+            try validateRequiredText(book.title, field: "Book title")
+            try validateRequiredText(book.author, field: "Book author")
+            if let totalPages = book.totalPages {
+                guard totalPages >= 0 else {
+                    throw SchoolStateError.invalidValue("Total pages cannot be negative.")
+                }
+            }
+            if let currentPage = book.currentPage {
+                guard currentPage >= 0 else {
+                    throw SchoolStateError.invalidValue("Current page cannot be negative.")
+                }
+            }
+            if let rating = book.rating {
+                guard (1...5).contains(rating) else {
+                    throw SchoolStateError.invalidValue("Rating must be between 1 and 5.")
+                }
+            }
+            if let startDay = book.startDay {
+                try validateDay(startDay)
+            }
+            if let completedDay = book.completedDay {
+                try validateDay(completedDay)
+            }
+            if let academicYearID = book.academicYearID {
+                guard academicYearIDs.contains(academicYearID) else {
+                    throw SchoolStateError.danglingReference("A book refers to a missing academic year")
+                }
+            }
+        }
+
+        for log in readingLogs {
+            guard studentIDs.contains(log.studentID) else {
+                throw SchoolStateError.danglingReference("A reading log refers to a missing student")
+            }
+            guard bookIDs.contains(log.bookID) else {
+                throw SchoolStateError.danglingReference("A reading log refers to a missing book")
+            }
+            guard log.minutes > 0 else {
+                throw SchoolStateError.invalidValue("Reading minutes must be greater than zero.")
+            }
+            if let pagesRead = log.pagesRead {
+                guard pagesRead >= 0 else {
+                    throw SchoolStateError.invalidValue("Pages read cannot be negative.")
+                }
+            }
+            try validateDay(log.day)
+            if let activityID = log.activityID {
+                guard activityIDs.contains(activityID) else {
+                    throw SchoolStateError.danglingReference("A reading log refers to a missing activity")
                 }
             }
         }
@@ -845,6 +1030,8 @@ public struct SchoolState: Codable, Equatable, Sendable {
         attendance.removeAll { $0.studentID == id }
         activities.removeAll { $0.studentID == id }
         portfolioItems.removeAll { $0.studentID == id }
+        books.removeAll { $0.studentID == id }
+        readingLogs.removeAll { $0.studentID == id }
         try validate()
     }
 
@@ -1012,6 +1199,11 @@ public struct SchoolState: Codable, Equatable, Sendable {
                 portfolioItems[i].activityID = nil
             }
         }
+        for i in readingLogs.indices {
+            if readingLogs[i].activityID == id {
+                readingLogs[i].activityID = nil
+            }
+        }
         try validate()
     }
 
@@ -1125,6 +1317,11 @@ public struct SchoolState: Codable, Equatable, Sendable {
         }
         academicYears.remove(at: index)
         terms.removeAll { $0.academicYearID == id }
+        for i in books.indices {
+            if books[i].academicYearID == id {
+                books[i].academicYearID = nil
+            }
+        }
         if activeYearID == id {
             activeYearID = academicYears.first?.id
         }
@@ -1500,6 +1697,259 @@ public struct SchoolState: Codable, Equatable, Sendable {
             if let studentID, item.studentID != studentID { return false }
             if let courseID, item.courseID != courseID { return false }
             if let year, !year.contains(day: item.day) { return false }
+            return true
+        }.sorted { $0.day > $1.day }
+    }
+
+    // MARK: - Book & Reading Log Operations
+
+    @discardableResult
+    public mutating func addBook(
+        studentID: UUID,
+        title: String,
+        author: String,
+        genre: String? = nil,
+        format: BookFormat = .physical,
+        status: BookStatus = .reading,
+        totalPages: Int? = nil,
+        currentPage: Int? = nil,
+        rating: Int? = nil,
+        notes: String? = nil,
+        startDay: String? = nil,
+        completedDay: String? = nil,
+        academicYearID: UUID? = nil
+    ) throws -> UUID {
+        try validate()
+        guard students.contains(where: { $0.id == studentID }) else {
+            throw SchoolStateError.unknownStudent(studentID)
+        }
+        let cleanedTitle = try cleanedRequiredText(title, field: "Book title")
+        let cleanedAuthor = try cleanedRequiredText(author, field: "Book author")
+        if let totalPages {
+            guard totalPages >= 0 else { throw SchoolStateError.invalidValue("Total pages cannot be negative.") }
+        }
+        if let currentPage {
+            guard currentPage >= 0 else { throw SchoolStateError.invalidValue("Current page cannot be negative.") }
+        }
+        if let rating {
+            guard (1...5).contains(rating) else { throw SchoolStateError.invalidValue("Rating must be between 1 and 5.") }
+        }
+        if let startDay {
+            try validateDay(startDay)
+        }
+        if let completedDay {
+            try validateDay(completedDay)
+        }
+        if let academicYearID {
+            guard academicYears.contains(where: { $0.id == academicYearID }) else {
+                throw SchoolStateError.unknownAcademicYear(academicYearID)
+            }
+        }
+
+        let book = BookEntry(
+            studentID: studentID,
+            title: cleanedTitle,
+            author: cleanedAuthor,
+            genre: genre?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? genre?.trimmingCharacters(in: .whitespacesAndNewlines) : nil,
+            format: format,
+            status: status,
+            totalPages: totalPages,
+            currentPage: currentPage,
+            rating: rating,
+            notes: notes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? notes?.trimmingCharacters(in: .whitespacesAndNewlines) : nil,
+            startDay: startDay,
+            completedDay: completedDay,
+            academicYearID: academicYearID
+        )
+        books.append(book)
+        try validate()
+        return book.id
+    }
+
+    public mutating func updateBook(
+        id: UUID,
+        title: String? = nil,
+        author: String? = nil,
+        genre: String? = nil,
+        format: BookFormat? = nil,
+        status: BookStatus? = nil,
+        totalPages: Int? = nil,
+        currentPage: Int? = nil,
+        rating: Int? = nil,
+        notes: String? = nil,
+        startDay: String? = nil,
+        completedDay: String? = nil,
+        academicYearID: UUID? = nil
+    ) throws {
+        try validate()
+        guard let index = books.firstIndex(where: { $0.id == id }) else {
+            throw SchoolStateError.unknownBook(id)
+        }
+
+        if let title {
+            books[index].title = try cleanedRequiredText(title, field: "Book title")
+        }
+        if let author {
+            books[index].author = try cleanedRequiredText(author, field: "Book author")
+        }
+        if let genre {
+            books[index].genre = genre.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : genre.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if let format {
+            books[index].format = format
+        }
+        if let status {
+            books[index].status = status
+        }
+        if let totalPages {
+            guard totalPages >= 0 else { throw SchoolStateError.invalidValue("Total pages cannot be negative.") }
+            books[index].totalPages = totalPages
+        }
+        if let currentPage {
+            guard currentPage >= 0 else { throw SchoolStateError.invalidValue("Current page cannot be negative.") }
+            books[index].currentPage = currentPage
+        }
+        if let rating {
+            guard (1...5).contains(rating) else { throw SchoolStateError.invalidValue("Rating must be between 1 and 5.") }
+            books[index].rating = rating
+        }
+        if let notes {
+            books[index].notes = notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if let startDay {
+            try validateDay(startDay)
+            books[index].startDay = startDay
+        }
+        if let completedDay {
+            try validateDay(completedDay)
+            books[index].completedDay = completedDay
+        }
+        if let academicYearID {
+            guard academicYears.contains(where: { $0.id == academicYearID }) else {
+                throw SchoolStateError.unknownAcademicYear(academicYearID)
+            }
+            books[index].academicYearID = academicYearID
+        }
+        try validate()
+    }
+
+    public mutating func deleteBook(id: UUID) throws {
+        try validate()
+        guard let index = books.firstIndex(where: { $0.id == id }) else {
+            throw SchoolStateError.unknownBook(id)
+        }
+        books.remove(at: index)
+        readingLogs.removeAll { $0.bookID == id }
+        try validate()
+    }
+
+    @discardableResult
+    public mutating func addReadingLogEntry(
+        bookID: UUID,
+        studentID: UUID,
+        day: String,
+        minutes: Int,
+        pagesRead: Int? = nil,
+        notes: String? = nil,
+        logToAttendance: Bool = false
+    ) throws -> UUID {
+        try validate()
+        guard let book = books.first(where: { $0.id == bookID }) else {
+            throw SchoolStateError.unknownBook(bookID)
+        }
+        guard students.contains(where: { $0.id == studentID }) else {
+            throw SchoolStateError.unknownStudent(studentID)
+        }
+        try validateDay(day)
+        guard minutes > 0 else {
+            throw SchoolStateError.invalidValue("Reading minutes must be greater than zero.")
+        }
+        if let pagesRead {
+            guard pagesRead >= 0 else {
+                throw SchoolStateError.invalidValue("Pages read cannot be negative.")
+            }
+        }
+
+        var linkedActivityID: UUID? = nil
+        if logToAttendance {
+            let activityTitle = "Reading: \(book.title)"
+            let activity = LearningActivity(studentID: studentID, title: activityTitle, day: day, minutes: minutes)
+            activities.append(activity)
+            linkedActivityID = activity.id
+        }
+
+        if let pagesRead, let current = book.currentPage {
+            if let bookIndex = books.firstIndex(where: { $0.id == bookID }) {
+                let updatedPages = current + pagesRead
+                books[bookIndex].currentPage = updatedPages
+                if let total = books[bookIndex].totalPages, updatedPages >= total {
+                    books[bookIndex].status = .completed
+                    if books[bookIndex].completedDay == nil {
+                        books[bookIndex].completedDay = day
+                    }
+                }
+            }
+        }
+
+        let entry = ReadingLogEntry(
+            bookID: bookID,
+            studentID: studentID,
+            day: day,
+            minutes: minutes,
+            pagesRead: pagesRead,
+            notes: notes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? notes?.trimmingCharacters(in: .whitespacesAndNewlines) : nil,
+            activityID: linkedActivityID
+        )
+        readingLogs.append(entry)
+        try validate()
+        return entry.id
+    }
+
+    public mutating func deleteReadingLogEntry(id: UUID) throws {
+        try validate()
+        guard let index = readingLogs.firstIndex(where: { $0.id == id }) else {
+            throw SchoolStateError.unknownReadingLog(id)
+        }
+        let entry = readingLogs[index]
+        readingLogs.remove(at: index)
+        if let actID = entry.activityID {
+            activities.removeAll { $0.id == actID }
+        }
+        try validate()
+    }
+
+    public func books(
+        for studentID: UUID? = nil,
+        status: BookStatus? = nil,
+        in year: AcademicYear? = nil
+    ) -> [BookEntry] {
+        books.filter { book in
+            if let studentID, book.studentID != studentID { return false }
+            if let status, book.status != status { return false }
+            if let year {
+                if let yid = book.academicYearID {
+                    return yid == year.id
+                }
+                if let comp = book.completedDay {
+                    return year.contains(day: comp)
+                }
+                if let start = book.startDay {
+                    return year.contains(day: start)
+                }
+            }
+            return true
+        }
+    }
+
+    public func readingLogs(
+        for studentID: UUID? = nil,
+        bookID: UUID? = nil,
+        in year: AcademicYear? = nil
+    ) -> [ReadingLogEntry] {
+        readingLogs.filter { log in
+            if let studentID, log.studentID != studentID { return false }
+            if let bookID, log.bookID != bookID { return false }
+            if let year, !year.contains(day: log.day) { return false }
             return true
         }.sorted { $0.day > $1.day }
     }

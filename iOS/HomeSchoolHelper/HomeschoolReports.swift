@@ -16,6 +16,7 @@ public enum ReportType: String, CaseIterable, Identifiable {
     case curriculum = "Curriculum Progress Report"
     case chronicle = "Comprehensive Annual Chronicle"
     case transcript = "Official High School Transcript"
+    case readingLog = "Reading Log & Book List"
     case calendar = "Calendar Schedule (.ics)"
 
     public var id: String { rawValue }
@@ -30,6 +31,8 @@ public enum ReportType: String, CaseIterable, Identifiable {
             return "doc.richtext"
         case .transcript:
             return "graduationcap"
+        case .readingLog:
+            return "books.vertical"
         case .calendar:
             return "calendar"
         }
@@ -45,6 +48,8 @@ public enum ReportType: String, CaseIterable, Identifiable {
             return "Comprehensive portfolio chronicle combining attendance, curriculum pacing, extracurricular activities, and certification."
         case .transcript:
             return "Official academic high school transcript with Carnegie credit hours, letter grades, cumulative GPA, and parent certification."
+        case .readingLog:
+            return "Official reading log and book list with titles, authors, genres, completion dates, ratings, and instructional reading hours for state portfolio evaluations."
         case .calendar:
             return "Standard RFC 5545 iCalendar schedule (.ics) of scheduled lessons and academic terms for Apple Calendar, Google Calendar, and Microsoft Outlook."
         }
@@ -348,6 +353,76 @@ public enum HomeschoolCSVGenerator {
 
         return lines.joined(separator: "\r\n")
     }
+
+    public static func generateReadingLogCSV(
+        state: SchoolState,
+        student: Student?,
+        year: AcademicYear
+    ) -> String {
+        var lines: [String] = []
+
+        lines.append(formatRow(["HOMESCHOOL HELPER - OFFICIAL READING LOG & BOOK LIST"]))
+        lines.append(formatRow(["Academic Year", year.title]))
+        if let student {
+            lines.append(formatRow(["Student", student.name, "Grade", student.gradeLevel]))
+        } else {
+            lines.append(formatRow(["Scope", "All Students (Household)"]))
+        }
+        lines.append("")
+
+        lines.append(formatRow([
+            "Title",
+            "Author",
+            "Student",
+            "Format",
+            "Status",
+            "Total Pages",
+            "Pages Read",
+            "Rating",
+            "Start Date",
+            "Completed Date",
+            "Notes"
+        ]))
+
+        let books = state.books(for: student?.id, in: year)
+        for book in books {
+            let studentName = state.students.first(where: { $0.id == book.studentID })?.name ?? "Unknown"
+            let ratingStr = book.rating != nil ? "\(book.rating!)/5 Stars" : "Unrated"
+            lines.append(formatRow([
+                book.title,
+                book.author,
+                studentName,
+                book.format.rawValue,
+                book.status.rawValue,
+                book.totalPages != nil ? "\(book.totalPages!)" : "—",
+                book.currentPage != nil ? "\(book.currentPage!)" : "—",
+                ratingStr,
+                book.startDay ?? "—",
+                book.completedDay ?? "—",
+                book.notes ?? ""
+            ]))
+        }
+
+        lines.append("")
+        lines.append(formatRow(["READING SESSION LOGS"]))
+        lines.append(formatRow(["Date", "Book Title", "Student", "Minutes Read", "Pages Read", "Session Notes"]))
+
+        let logs = state.readingLogs(for: student?.id, in: year)
+        for log in logs {
+            let studentName = state.students.first(where: { $0.id == log.studentID })?.name ?? "Unknown"
+            let bookTitle = state.books.first(where: { $0.id == log.bookID })?.title ?? "Unknown"
+            lines.append(formatRow([
+                log.day,
+                bookTitle,
+                studentName,
+                "\(log.minutes)",
+                log.pagesRead != nil ? "\(log.pagesRead!)" : "—",
+                log.notes ?? ""
+            ]))
+        }
+
+        return lines.joined(separator: "\r\n")
+    }
 }
 
 // MARK: - PDF Generation Engine (Letter 8.5" x 11")
@@ -539,6 +614,21 @@ public enum HomeschoolPDFGenerator {
                     checkNewPage: checkNewPage
                 )
 
+            case .readingLog:
+                currentY = drawReadingLogSection(
+                    in: context,
+                    currentY: currentY,
+                    checkNewPage: checkNewPage,
+                    state: state,
+                    student: student,
+                    year: year
+                )
+                currentY = drawSignatureBlock(
+                    in: context,
+                    currentY: currentY,
+                    checkNewPage: checkNewPage
+                )
+
             case .calendar:
                 currentY = drawCurriculumSection(
                     in: context,
@@ -576,6 +666,38 @@ public enum HomeschoolPDFGenerator {
         UIColor.systemGray4.setStroke()
         boxPath.lineWidth = 0.5
         boxPath.stroke()
+
+        if type == .readingLog {
+            let totalBooks = state.books(for: student?.id, in: year).count
+            let completed = state.books(for: student?.id, status: .completed, in: year).count
+            let totalMinutes = state.readingLogs(for: student?.id, in: year).reduce(0) { $0 + $1.minutes }
+            let hours = Double(totalMinutes) / 60.0
+
+            let col1Rect = CGRect(x: margin + 12, y: y + 8, width: 160, height: 34)
+            drawMetric(
+                title: "TOTAL BOOKS",
+                value: "\(totalBooks)",
+                rect: col1Rect
+            )
+
+            let col2Rect = CGRect(x: margin + 180, y: y + 8, width: 160, height: 34)
+            drawMetric(
+                title: "BOOKS COMPLETED",
+                value: "\(completed)",
+                rect: col2Rect
+            )
+
+            let col3Rect = CGRect(x: margin + 350, y: y + 8, width: 170, height: 34)
+            drawMetric(
+                title: "READING TIME",
+                value: String(format: "%.1f hrs (%d min)", hours, totalMinutes),
+                rect: col3Rect,
+                isHighlight: totalMinutes > 0
+            )
+
+            y += 60
+            return y
+        }
 
         if type == .transcript {
             let unweighted = student != nil ? state.cumulativeGPA(for: student!.id, weighted: false) : nil
@@ -889,6 +1011,136 @@ public enum HomeschoolPDFGenerator {
             }
         }
 
+        return y
+    }
+
+    private static func drawReadingLogSection(
+        in context: UIGraphicsPDFRendererContext,
+        currentY: CGFloat,
+        checkNewPage: (CGFloat) -> Void,
+        state: SchoolState,
+        student: Student?,
+        year: AcademicYear
+    ) -> CGFloat {
+        var y = currentY
+        checkNewPage(40)
+
+        let sectionFont = UIFont.systemFont(ofSize: 12, weight: .bold)
+        ("OFFICIAL READING LOG & BOOK LIST" as NSString).draw(
+            at: CGPoint(x: margin, y: y),
+            withAttributes: [.font: sectionFont, .foregroundColor: UIColor.label]
+        )
+        y += 18
+
+        let rowFont = UIFont.systemFont(ofSize: 8, weight: .regular)
+        let rowAttr: [NSAttributedString.Key: Any] = [.font: rowFont, .foregroundColor: UIColor.label]
+        let thFont = UIFont.systemFont(ofSize: 8, weight: .bold)
+        let thAttr: [NSAttributedString.Key: Any] = [.font: thFont, .foregroundColor: UIColor.secondaryLabel]
+
+        // Table Header
+        ("Book Title & Author" as NSString).draw(at: CGPoint(x: margin + 6, y: y), withAttributes: thAttr)
+        ("Format" as NSString).draw(at: CGPoint(x: margin + 220, y: y), withAttributes: thAttr)
+        ("Status" as NSString).draw(at: CGPoint(x: margin + 295, y: y), withAttributes: thAttr)
+        ("Progress" as NSString).draw(at: CGPoint(x: margin + 375, y: y), withAttributes: thAttr)
+        ("Rating" as NSString).draw(at: CGPoint(x: margin + 440, y: y), withAttributes: thAttr)
+        ("Completed" as NSString).draw(at: CGPoint(x: margin + 490, y: y), withAttributes: thAttr)
+        y += 12
+
+        let line = UIBezierPath()
+        line.move(to: CGPoint(x: margin, y: y))
+        line.addLine(to: CGPoint(x: pageWidth - margin, y: y))
+        line.lineWidth = 0.5
+        UIColor.separator.setStroke()
+        line.stroke()
+        y += 4
+
+        let books = state.books(for: student?.id, in: year)
+        if books.isEmpty {
+            ("No books logged for this period." as NSString).draw(
+                at: CGPoint(x: margin + 6, y: y + 2),
+                withAttributes: [.font: rowFont, .foregroundColor: UIColor.secondaryLabel]
+            )
+            y += 18
+        } else {
+            var isEven = false
+            for book in books {
+                checkNewPage(16)
+                if isEven {
+                    let rowBg = CGRect(x: margin, y: y - 2, width: contentWidth, height: 14)
+                    UIColor.systemGray6.withAlphaComponent(0.5).setFill()
+                    UIRectFill(rowBg)
+                }
+
+                let titleAuthor = "\(book.title) — \(book.author)"
+                (titleAuthor as NSString).draw(at: CGPoint(x: margin + 6, y: y), withAttributes: rowAttr)
+                (book.format.rawValue as NSString).draw(at: CGPoint(x: margin + 220, y: y), withAttributes: rowAttr)
+                (book.status.rawValue as NSString).draw(at: CGPoint(x: margin + 295, y: y), withAttributes: rowAttr)
+
+                let progressStr: String
+                if let cur = book.currentPage, let tot = book.totalPages {
+                    progressStr = "p. \(cur)/\(tot)"
+                } else if let cur = book.currentPage {
+                    progressStr = "p. \(cur)"
+                } else {
+                    progressStr = "—"
+                }
+                (progressStr as NSString).draw(at: CGPoint(x: margin + 375, y: y), withAttributes: rowAttr)
+
+                let ratingStr = book.rating != nil ? "\(book.rating!)★" : "—"
+                (ratingStr as NSString).draw(at: CGPoint(x: margin + 440, y: y), withAttributes: rowAttr)
+                ((book.completedDay ?? "—") as NSString).draw(at: CGPoint(x: margin + 490, y: y), withAttributes: rowAttr)
+
+                y += 14
+                isEven.toggle()
+            }
+        }
+
+        y += 14
+
+        let logs = state.readingLogs(for: student?.id, in: year)
+        if !logs.isEmpty {
+            checkNewPage(35)
+            ("RECENT READING SESSIONS" as NSString).draw(
+                at: CGPoint(x: margin, y: y),
+                withAttributes: [.font: UIFont.systemFont(ofSize: 10, weight: .bold), .foregroundColor: UIColor.label]
+            )
+            y += 14
+
+            ("Date" as NSString).draw(at: CGPoint(x: margin + 6, y: y), withAttributes: thAttr)
+            ("Book" as NSString).draw(at: CGPoint(x: margin + 100, y: y), withAttributes: thAttr)
+            ("Duration" as NSString).draw(at: CGPoint(x: margin + 320, y: y), withAttributes: thAttr)
+            ("Pages Read" as NSString).draw(at: CGPoint(x: margin + 400, y: y), withAttributes: thAttr)
+            y += 12
+
+            let logLine = UIBezierPath()
+            logLine.move(to: CGPoint(x: margin, y: y))
+            logLine.addLine(to: CGPoint(x: pageWidth - margin, y: y))
+            logLine.lineWidth = 0.5
+            UIColor.separator.setStroke()
+            logLine.stroke()
+            y += 4
+
+            var isLogEven = false
+            for log in logs.prefix(30) {
+                checkNewPage(16)
+                if isLogEven {
+                    let rowBg = CGRect(x: margin, y: y - 2, width: contentWidth, height: 14)
+                    UIColor.systemGray6.withAlphaComponent(0.5).setFill()
+                    UIRectFill(rowBg)
+                }
+
+                let bookTitle = state.books.first(where: { $0.id == log.bookID })?.title ?? "Unknown"
+                (log.day as NSString).draw(at: CGPoint(x: margin + 6, y: y), withAttributes: rowAttr)
+                (bookTitle as NSString).draw(at: CGPoint(x: margin + 100, y: y), withAttributes: rowAttr)
+                ("\(log.minutes) min" as NSString).draw(at: CGPoint(x: margin + 320, y: y), withAttributes: rowAttr)
+                ((log.pagesRead != nil ? "\(log.pagesRead!) pages" : "—") as NSString).draw(at: CGPoint(x: margin + 400, y: y), withAttributes: rowAttr)
+
+                y += 14
+                isLogEven.toggle()
+            }
+        }
+
+        y += 12
         return y
     }
 

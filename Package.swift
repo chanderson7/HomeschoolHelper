@@ -31,7 +31,13 @@ let package = Package(
                 "StudentModeView.swift",
                 "PortfolioView.swift",
                 "PortfolioStorage.swift",
-                "NotificationManager.swift"
+                "NotificationManager.swift",
+                "SharedComponents.swift",
+                "TodayView.swift",
+                "PlanView.swift",
+                "RecordsView.swift",
+                "FamilyView.swift",
+                "ReadingLogView.swift"
             ],
             sources: ["HomeschoolStore.swift"]
         ),
