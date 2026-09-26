@@ -1131,6 +1131,7 @@ private struct ExportRecordsSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done", action: dismiss.callAsFunction)
+                        .accessibilityIdentifier("doneExportRecords")
                 }
             }
             .sheet(isPresented: $showPaywall) {

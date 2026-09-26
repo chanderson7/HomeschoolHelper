@@ -74,7 +74,16 @@ private struct SignedInSchoolView: View {
 
 #if DEBUG
 private struct UITestSchoolView: View {
-    @StateObject private var store = HomeschoolStore()
+    @StateObject private var store: HomeschoolStore
+
+    init() {
+        let store = HomeschoolStore()
+        if ProcessInfo.processInfo.environment["HSH_LOAD_SAMPLE_HOUSEHOLD"] == "1" {
+            _ = store.restore(SampleDataGenerator.generateSampleState())
+        }
+        _store = StateObject(wrappedValue: store)
+    }
+
     var body: some View { HomeTabView().environmentObject(store) }
 }
 #endif

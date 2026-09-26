@@ -229,6 +229,7 @@ public struct PaywallView: View {
                             .font(.title3)
                     }
                     .accessibilityLabel("Close Paywall")
+                    .accessibilityIdentifier("closePaywall")
                 }
             }
             .sheet(item: $activeLegalDoc) { doc in

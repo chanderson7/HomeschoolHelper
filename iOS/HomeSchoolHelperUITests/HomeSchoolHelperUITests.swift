@@ -144,6 +144,58 @@ final class HomeSchoolHelperUITests: XCTestCase {
         attachScreenshot(named: "settings-page")
     }
 
+    func testAppStoreMarketingScreenshots() throws {
+        app.terminate()
+        app.launchEnvironment["HSH_UI_TEST_ID"] = UUID().uuidString
+        app.launchEnvironment["HSH_UI_TEST_AUTH_MODE"] = "authenticated"
+        app.launchEnvironment["HSH_LOAD_SAMPLE_HOUSEHOLD"] = "1"
+        app.launchEnvironment["HSH_PRO_OVERRIDE"] = "1"
+        app.launch()
+
+        // 1. Today Dashboard
+        XCTAssertTrue(app.tabBars.buttons["Today"].waitForExistence(timeout: 5))
+        attachScreenshot(named: "01_Today_Dashboard")
+
+        // 2. Plan / Curriculum
+        app.tabBars.buttons["Plan"].tap()
+        XCTAssertTrue(app.navigationBars["Curriculum & Plan"].waitForExistence(timeout: 5))
+        attachScreenshot(named: "02_Plan_Curriculum")
+
+        // 3. Records / Compliance Overview
+        app.tabBars.buttons["Records"].tap()
+        XCTAssertTrue(app.navigationBars["Records"].waitForExistence(timeout: 5))
+        attachScreenshot(named: "03_Records_Compliance")
+
+        // 4. Official Report Card Preview
+        tap("exportOfficialRecords", in: app.buttons)
+        XCTAssertTrue(app.navigationBars["Export Official Records"].waitForExistence(timeout: 5))
+        if app.buttons["exportReportTypePicker"].exists {
+            app.buttons["exportReportTypePicker"].tap()
+            if app.buttons["Academic Report Card"].waitForExistence(timeout: 2) {
+                app.buttons["Academic Report Card"].tap()
+            }
+        }
+        _ = app.buttons["shareOfficialRecordButton"].waitForExistence(timeout: 3)
+        attachScreenshot(named: "04_Official_Report_Card")
+        tap("doneExportRecords", in: app.buttons)
+
+        // 5. Reading Log Bookshelf
+        tap("openReadingLog", in: app.buttons)
+        XCTAssertTrue(app.navigationBars["Reading Log & Books"].waitForExistence(timeout: 5))
+        attachScreenshot(named: "05_Reading_Log_Bookshelf")
+        tap("doneReadingLog", in: app.buttons)
+
+        // 6. Pro Paywall & Membership
+        app.tabBars.buttons["Settings"].tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+        tap("settingsProButton", in: app.buttons)
+        XCTAssertTrue(app.buttons["purchaseProButton"].waitForExistence(timeout: 5))
+        attachScreenshot(named: "06_Pro_Paywall")
+        if app.buttons["closePaywall"].exists {
+            app.buttons["closePaywall"].tap()
+        }
+    }
+
     private func addLearner(name: String, grade: String) {
         app.tabBars.buttons["Family"].tap()
         tap("addStudent", in: app.buttons)
