@@ -1,4 +1,4 @@
-# HomeschoolEZ
+# EZHomeschool
 
 First native milestone · September 20, 2026
 

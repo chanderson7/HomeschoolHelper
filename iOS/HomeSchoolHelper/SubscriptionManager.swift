@@ -7,8 +7,8 @@ import StoreKit
 public final class SubscriptionManager: ObservableObject {
     public static let shared = SubscriptionManager()
 
-    public static let annualProductID = "com.andersonsites.homeschoolez.pro.annual"
-    public static let monthlyProductID = "com.andersonsites.homeschoolez.pro.monthly"
+    public static let annualProductID = "com.andersonsites.ezhomeschool.pro.annual"
+    public static let monthlyProductID = "com.andersonsites.ezhomeschool.pro.monthly"
 
     public static let allProductIDs: Set<String> = [
         annualProductID,

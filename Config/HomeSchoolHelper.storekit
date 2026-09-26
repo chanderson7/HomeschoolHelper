@@ -24,12 +24,12 @@
       "id" : "21456789",
       "localizations" : [
         {
-          "description" : "Unlock all HomeschoolEZ Pro features",
-          "displayName" : "HomeschoolEZ Pro",
+          "description" : "Unlock all EZHomeschool Pro features",
+          "displayName" : "EZHomeschool Pro",
           "locale" : "en_US"
         }
       ],
-      "name" : "HomeschoolEZ Pro",
+      "name" : "EZHomeschool Pro",
       "subscriptions" : [
         {
           "adHocOffers" : [ ],
@@ -46,7 +46,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.andersonsites.homeschoolez.pro.monthly",
+          "productID" : "com.andersonsites.ezhomeschool.pro.monthly",
           "recurringSubscriptionPeriod" : "P1M",
           "referenceName" : "Pro Monthly",
           "subscriptionGroupID" : "21456789",
@@ -72,7 +72,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.andersonsites.homeschoolez.pro.annual",
+          "productID" : "com.andersonsites.ezhomeschool.pro.annual",
           "recurringSubscriptionPeriod" : "P1Y",
           "referenceName" : "Pro Annual",
           "subscriptionGroupID" : "21456789",

@@ -50,8 +50,8 @@ struct SettingsView: View {
                     .padding(.vertical, 4)
                 }
 
-                // HomeschoolEZ Pro
-                Section("HomeschoolEZ Pro") {
+                // EZHomeschool Pro
+                Section("EZHomeschool Pro") {
                     HStack(spacing: 14) {
                         ZStack {
                             Circle()
@@ -403,14 +403,14 @@ struct SettingsView: View {
                         .accessibilityIdentifier("onlineSupportLink")
                     }
 
-                    if let supportURL = URL(string: "mailto:support@homeschoolhelper.app?subject=HomeschoolEZ%20Support") {
+                    if let supportURL = URL(string: "mailto:support@homeschoolhelper.app?subject=EZHomeschool%20Support") {
                         Link(destination: supportURL) {
                             Label("Email Support & Feedback", systemImage: "envelope")
                         }
                         .accessibilityIdentifier("contactSupportLink")
                     }
 
-                    Text("HomeschoolEZ is crafted to give parents and families calm, organized, and private control over their homeschool journey.")
+                    Text("EZHomeschool is crafted to give parents and families calm, organized, and private control over their homeschool journey.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 2)
@@ -631,7 +631,7 @@ private struct NotificationsSection: View {
         .alert("Notifications Disabled", isPresented: $showingPermissionAlert) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("Please enable notifications for HomeschoolEZ in iOS Settings to receive morning reminders.")
+            Text("Please enable notifications for EZHomeschool in iOS Settings to receive morning reminders.")
         }
     }
 }
