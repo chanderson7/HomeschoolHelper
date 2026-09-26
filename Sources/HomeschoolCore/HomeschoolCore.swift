@@ -2333,7 +2333,7 @@ public enum HomeschoolCalendarGenerator {
         var lines: [String] = [
             "BEGIN:VCALENDAR",
             "VERSION:2.0",
-            "PRODID:-//Homeschool Compass//Homeschool Calendar 1.0//EN",
+            "PRODID:-//HomeschoolEZ//Homeschool Calendar 1.0//EN",
             "CALSCALE:GREGORIAN",
             "METHOD:PUBLISH"
         ]

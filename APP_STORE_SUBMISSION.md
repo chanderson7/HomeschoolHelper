@@ -1,4 +1,4 @@
-# Homeschool Compass — App Store Submission Guide
+# HomeschoolEZ — App Store Submission Guide
 
 This document contains all verified metadata, store copy, in-app purchase configurations, reviewer instructions, and privacy nutrition label responses required for App Store Connect submission.
 
@@ -7,14 +7,14 @@ This document contains all verified metadata, store copy, in-app purchase config
 ## 1. App Store Presence & Metadata
 
 ### General App Information
-- **App Name**: `Homeschool Compass` *(17 / 30 characters)*
+- **App Name**: `HomeschoolEZ` *(12 / 30 characters)*
 - **Subtitle**: `Homeschool & Lesson Planner` *(27 / 30 characters)*
 - **Primary Category**: Education
 - **Secondary Category**: Productivity
 - **Age Rating**: 4+ (No violence, realistic gambling, profanity, or mature content)
-- **Bundle ID**: `com.andersonsites.homeschoolcompass`
-- **SKU**: `HC-IOS-001`
-- **Copyright**: `© 2026 Homeschool Compass. All rights reserved.`
+- **Bundle ID**: `com.andersonsites.homeschoolez`
+- **SKU**: `HEZ-IOS-001`
+- **Copyright**: `© 2026 HomeschoolEZ. All rights reserved.`
 - **Primary Language**: English (U.S.)
 
 ---
@@ -41,9 +41,9 @@ This document contains all verified metadata, store copy, in-app purchase config
 ### App Store Description
 
 ```markdown
-Homeschool Compass is the all-in-one homeschool management app built for homeschooling parents, cooperative educators, and modern families. Designed with a local-first architecture, Homeschool Compass keeps your family's records private, responsive, and completely under your control — online or offline.
+HomeschoolEZ is the all-in-one homeschool management app built for homeschooling parents, cooperative educators, and modern families. Designed with a local-first architecture, HomeschoolEZ keeps your family's records private, responsive, and completely under your control — online or offline.
 
-Whether you're managing multiple children across different grade levels, tracking state compliance hours, or building personalized lesson sequences, Homeschool Compass simplifies your day so you can focus on teaching.
+Whether you're managing multiple children across different grade levels, tracking state compliance hours, or building personalized lesson sequences, HomeschoolEZ simplifies your day so you can focus on teaching.
 
 CORE HIGHLIGHTS:
 
@@ -86,7 +86,7 @@ CORE HIGHLIGHTS:
 • Optional encrypted Supabase cloud backup keeps records synced across all your family devices
 • No third-party ad networks, no tracking, and no data selling — ever.
 
-Homeschool Compass is crafted with care to make your homeschool journey joyful, organized, and legally compliant.
+HomeschoolEZ is crafted with care to make your homeschool journey joyful, organized, and legally compliant.
 ```
 
 ---
@@ -95,12 +95,12 @@ Homeschool Compass is crafted with care to make your homeschool journey joyful, 
 
 Configure the following auto-renewable subscription group in App Store Connect:
 
-### Subscription Group: `Homeschool Compass Pro`
-- **Group Reference Name**: `Homeschool Compass Pro Subscriptions`
+### Subscription Group: `HomeschoolEZ Pro`
+- **Group Reference Name**: `HomeschoolEZ Pro Subscriptions`
 
 #### Tier 1: Annual Membership (Recommended)
-- **Reference Name**: `Homeschool Compass Pro Annual`
-- **Product ID**: `com.andersonsites.homeschoolcompass.pro.annual`
+- **Reference Name**: `HomeschoolEZ Pro Annual`
+- **Product ID**: `com.andersonsites.homeschoolez.pro.annual`
 - **Duration**: 1 Year
 - **Price**: $39.99 USD
 - **Introductory Offer**: 7-Day Free Trial
@@ -108,8 +108,8 @@ Configure the following auto-renewable subscription group in App Store Connect:
 - **Subscription Description**: `Full unlimited access to multi-child profiles, official report cards, unlimited portfolio photos, and automatic cloud backup.`
 
 #### Tier 2: Monthly Membership
-- **Reference Name**: `Homeschool Compass Pro Monthly`
-- **Product ID**: `com.andersonsites.homeschoolcompass.pro.monthly`
+- **Reference Name**: `HomeschoolEZ Pro Monthly`
+- **Product ID**: `com.andersonsites.homeschoolez.pro.monthly`
 - **Duration**: 1 Month
 - **Price**: $4.99 USD
 - **Subscription Display Name**: `Monthly Pro Membership`
@@ -123,7 +123,7 @@ Provide this in the **App Review Information** section of App Store Connect:
 
 ```text
 SIGN-IN & AUTHENTICATION:
-Homeschool Compass operates on a privacy-first, local-first architecture. A user account is completely OPTIONAL. The reviewer may explore the entire application without logging in.
+HomeschoolEZ operates on a privacy-first, local-first architecture. A user account is completely OPTIONAL. The reviewer may explore the entire application without logging in.
 
 QUICK START / SAMPLE DATA:
 To immediately review the app with a populated household (2 students, 3 courses with 18 lessons, attendance records, grades, reading logs, and portfolio items):
@@ -181,7 +181,7 @@ Answer the App Store Connect Privacy Questionnaire as follows:
 **YES** (If the user voluntarily signs in for Cloud Sync; otherwise local only).
 
 ### "Do you track users?"
-> **NO**. Homeschool Compass does not track users across apps and websites owned by other companies, does not integrate advertising SDKs, and does not sell or share data with data brokers.
+> **NO**. HomeschoolEZ does not track users across apps and websites owned by other companies, does not integrate advertising SDKs, and does not sell or share data with data brokers.
 
 ---
 

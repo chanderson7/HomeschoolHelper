@@ -50,8 +50,8 @@ struct SettingsView: View {
                     .padding(.vertical, 4)
                 }
 
-                // Homeschool Compass Pro
-                Section("Homeschool Compass Pro") {
+                // HomeschoolEZ Pro
+                Section("HomeschoolEZ Pro") {
                     HStack(spacing: 14) {
                         ZStack {
                             Circle()
@@ -403,14 +403,14 @@ struct SettingsView: View {
                         .accessibilityIdentifier("onlineSupportLink")
                     }
 
-                    if let supportURL = URL(string: "mailto:support@homeschoolhelper.app?subject=Homeschool Compass%20Support") {
+                    if let supportURL = URL(string: "mailto:support@homeschoolhelper.app?subject=HomeschoolEZ%20Support") {
                         Link(destination: supportURL) {
                             Label("Email Support & Feedback", systemImage: "envelope")
                         }
                         .accessibilityIdentifier("contactSupportLink")
                     }
 
-                    Text("Homeschool Compass is crafted to give parents and families calm, organized, and private control over their homeschool journey.")
+                    Text("HomeschoolEZ is crafted to give parents and families calm, organized, and private control over their homeschool journey.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 2)
@@ -631,7 +631,7 @@ private struct NotificationsSection: View {
         .alert("Notifications Disabled", isPresented: $showingPermissionAlert) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("Please enable notifications for Homeschool Compass in iOS Settings to receive morning reminders.")
+            Text("Please enable notifications for HomeschoolEZ in iOS Settings to receive morning reminders.")
         }
     }
 }

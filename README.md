@@ -1,4 +1,4 @@
-# Homeschool Compass
+# HomeschoolEZ
 
 First native milestone · September 20, 2026
 

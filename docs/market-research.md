@@ -33,7 +33,7 @@ These are package prices, not standalone prices for each feature. Feature inclus
 
 Effort estimates are engineering judgments, not delivery estimates. Authentication, persistence, migration, accessibility, support and security remain necessary shared costs.
 
-Panda's monthly Essentials-to-Pro difference is $3/month ($36 across twelve monthly payments), but the upgrade includes several features. It does not mean transcripts alone cost $36. Homeschool Compass could include transcripts and budgeting in a base package without claiming feature-for-feature equivalence.
+Panda's monthly Essentials-to-Pro difference is $3/month ($36 across twelve monthly payments), but the upgrade includes several features. It does not mean transcripts alone cost $36. HomeschoolEZ could include transcripts and budgeting in a base package without claiming feature-for-feature equivalence.
 
 ## Differentiation and pricing
 

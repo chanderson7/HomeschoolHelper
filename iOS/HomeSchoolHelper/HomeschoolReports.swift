@@ -534,8 +534,8 @@ public enum HomeschoolPDFGenerator {
         year: AcademicYear
     ) -> Data {
         let pdfMetaData = [
-            kCGPDFContextCreator: "Homeschool Compass",
-            kCGPDFContextAuthor: "Homeschool Compass Official Records",
+            kCGPDFContextCreator: "HomeschoolEZ",
+            kCGPDFContextAuthor: "HomeschoolEZ Official Records",
             kCGPDFContextTitle: "\(type.rawValue) - \(year.title)"
         ]
         let format = UIGraphicsPDFRendererFormat()

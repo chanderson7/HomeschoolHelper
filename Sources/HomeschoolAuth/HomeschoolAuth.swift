@@ -101,7 +101,7 @@ private final class SupabaseAuthDriver: AuthClientDriving {
     }
 }
 
-/// Owns the UI-facing authentication state for Homeschool Compass.
+/// Owns the UI-facing authentication state for HomeschoolEZ.
 ///
 /// A session found in Supabase's Keychain storage is deliberately never enough to
 /// enter the app. `start()` and `refreshSession()` both validate it with

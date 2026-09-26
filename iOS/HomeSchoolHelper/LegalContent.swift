@@ -56,11 +56,11 @@ enum LegalDocumentType: String, Identifiable, CaseIterable {
         case .privacyPolicy:
             return LegalDocument(
                 type: self,
-                summary: "Homeschool Compass is built local-first. We do not sell your data, track children, or serve advertisements. Your family's educational records belong entirely to you.",
+                summary: "HomeschoolEZ is built local-first. We do not sell your data, track children, or serve advertisements. Your family's educational records belong entirely to you.",
                 sections: [
                     LegalSection(
                         title: "1. Local-First Data Sovereignty",
-                        body: "Homeschool Compass operates on a Local-First architecture. All learner profiles, grade levels, course definitions, daily assignments, attendance records, and retrospective learning activities are stored locally on your device in secure app sandboxes. You can use all core features completely offline without internet connectivity.",
+                        body: "HomeschoolEZ operates on a Local-First architecture. All learner profiles, grade levels, course definitions, daily assignments, attendance records, and retrospective learning activities are stored locally on your device in secure app sandboxes. You can use all core features completely offline without internet connectivity.",
                         highlights: [
                             "Core data lives on your device first",
                             "Full offline capability for daily lessons and attendance",
@@ -78,7 +78,7 @@ enum LegalDocumentType: String, Identifiable, CaseIterable {
                     ),
                     LegalSection(
                         title: "3. Children's Privacy (COPPA & Student Privacy)",
-                        body: "We recognize the critical importance of protecting children's privacy in educational applications. Homeschool Compass is designed for use by parents, guardians, and educators.\n\n• We do not market to children or collect personal information directly from minors.\n• Learner names, grade levels, and learning milestones provided by parents are kept strictly within your private account boundary.\n• We do not perform student profiling, behavioral tracking, or analytics on child progress.\n• We do not sell, rent, or monetize student or family data under any circumstances.",
+                        body: "We recognize the critical importance of protecting children's privacy in educational applications. HomeschoolEZ is designed for use by parents, guardians, and educators.\n\n• We do not market to children or collect personal information directly from minors.\n• Learner names, grade levels, and learning milestones provided by parents are kept strictly within your private account boundary.\n• We do not perform student profiling, behavioral tracking, or analytics on child progress.\n• We do not sell, rent, or monetize student or family data under any circumstances.",
                         highlights: [
                             "Strict compliance with child privacy principles",
                             "Zero advertising and zero data brokering",
@@ -96,7 +96,7 @@ enum LegalDocumentType: String, Identifiable, CaseIterable {
                     ),
                     LegalSection(
                         title: "5. Your Rights: In-App Account Deletion & Data Erasure",
-                        body: "You maintain complete ownership of your educational records. In compliance with Apple App Store Review Guideline 5.1.1(v) and global privacy regulations, Homeschool Compass provides comprehensive in-app account deletion and data wiping mechanisms:\n\n• In-App Account Deletion: When signed in, navigate to Settings > Manage Backups & Restore > Delete Account. This immediately executes a secure database procedure that permanently deletes your cloud account and purges all school backup snapshots from our cloud database.\n• Flexible Local Data Control: When deleting your cloud account, you can choose to preserve your records locally on your device as an offline household, or perform a total wipe.\n• Offline Device Wipe: Offline users can permanently clear all local learner profiles, lessons, attendance, and grades at any time via Settings > Data & Storage > Erase All Device Data.",
+                        body: "You maintain complete ownership of your educational records. In compliance with Apple App Store Review Guideline 5.1.1(v) and global privacy regulations, HomeschoolEZ provides comprehensive in-app account deletion and data wiping mechanisms:\n\n• In-App Account Deletion: When signed in, navigate to Settings > Manage Backups & Restore > Delete Account. This immediately executes a secure database procedure that permanently deletes your cloud account and purges all school backup snapshots from our cloud database.\n• Flexible Local Data Control: When deleting your cloud account, you can choose to preserve your records locally on your device as an offline household, or perform a total wipe.\n• Offline Device Wipe: Offline users can permanently clear all local learner profiles, lessons, attendance, and grades at any time via Settings > Data & Storage > Erase All Device Data.",
                         highlights: [
                             "Immediate permanent remote account deletion via in-app button",
                             "Full choice to keep or erase local offline records",
@@ -113,16 +113,16 @@ enum LegalDocumentType: String, Identifiable, CaseIterable {
         case .termsOfService:
             return LegalDocument(
                 type: self,
-                summary: "These terms govern your use of Homeschool Compass. By using the app, you agree to these terms designed to support responsible homeschool record-keeping.",
+                summary: "These terms govern your use of HomeschoolEZ. By using the app, you agree to these terms designed to support responsible homeschool record-keeping.",
                 sections: [
                     LegalSection(
                         title: "1. Acceptance of Terms",
-                        body: "By downloading, accessing, or using Homeschool Compass, you agree to be bound by these Terms of Service. If you do not agree with any part of these terms, please discontinue use of the application.",
+                        body: "By downloading, accessing, or using HomeschoolEZ, you agree to be bound by these Terms of Service. If you do not agree with any part of these terms, please discontinue use of the application.",
                         highlights: nil
                     ),
                     LegalSection(
                         title: "2. Educational Utility & Parental Responsibility",
-                        body: "Homeschool Compass is an organizational, scheduling, and record-keeping tool created for homeschooling parents and educators.\n\n• Homeschool Compass is not an accredited school, certified curriculum provider, or legal educational authority.\n• Parents and guardians remain solely responsible for complying with all applicable local, state, provincial, and national homeschool regulations, mandatory attendance days, curriculum standards, and reporting requirements in their jurisdiction.",
+                        body: "HomeschoolEZ is an organizational, scheduling, and record-keeping tool created for homeschooling parents and educators.\n\n• HomeschoolEZ is not an accredited school, certified curriculum provider, or legal educational authority.\n• Parents and guardians remain solely responsible for complying with all applicable local, state, provincial, and national homeschool regulations, mandatory attendance days, curriculum standards, and reporting requirements in their jurisdiction.",
                         highlights: [
                             "App is an organizational utility, not an accredited school",
                             "Parents are responsible for state homeschool compliance",
@@ -131,7 +131,7 @@ enum LegalDocumentType: String, Identifiable, CaseIterable {
                     ),
                     LegalSection(
                         title: "3. User Content & Ownership",
-                        body: "You retain 100% intellectual property ownership of all student names, course titles, lesson outlines, schedules, notes, and records you input into Homeschool Compass. We claim no ownership over your educational materials or family data.",
+                        body: "You retain 100% intellectual property ownership of all student names, course titles, lesson outlines, schedules, notes, and records you input into HomeschoolEZ. We claim no ownership over your educational materials or family data.",
                         highlights: [
                             "You own 100% of your curriculum and notes",
                             "We never use your educational content for marketing"
@@ -139,7 +139,7 @@ enum LegalDocumentType: String, Identifiable, CaseIterable {
                     ),
                     LegalSection(
                         title: "4. Account Security & Backups",
-                        body: "You are responsible for maintaining the confidentiality of your account credentials. Because Homeschool Compass is local-first, we strongly encourage parents to periodically create private cloud backups or maintain device backups to prevent data loss in the event of hardware damage or device replacement.",
+                        body: "You are responsible for maintaining the confidentiality of your account credentials. Because HomeschoolEZ is local-first, we strongly encourage parents to periodically create private cloud backups or maintain device backups to prevent data loss in the event of hardware damage or device replacement.",
                         highlights: [
                             "Keep your account password secure",
                             "Regularly save private cloud backups"
@@ -147,21 +147,21 @@ enum LegalDocumentType: String, Identifiable, CaseIterable {
                     ),
                     LegalSection(
                         title: "5. Disclaimer of Warranties",
-                        body: "Homeschool Compass is provided on an 'AS IS' and 'AS AVAILABLE' basis without warranties of any kind, whether express or implied. While we strive for absolute data durability and reliability, we do not guarantee that the service will be error-free or uninterrupted.",
+                        body: "HomeschoolEZ is provided on an 'AS IS' and 'AS AVAILABLE' basis without warranties of any kind, whether express or implied. While we strive for absolute data durability and reliability, we do not guarantee that the service will be error-free or uninterrupted.",
                         highlights: nil
                     ),
                     LegalSection(
                         title: "6. Limitation of Liability",
-                        body: "To the maximum extent permitted by law, Homeschool Compass and its creators shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising out of your use or inability to use the application.",
+                        body: "To the maximum extent permitted by law, HomeschoolEZ and its creators shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising out of your use or inability to use the application.",
                         highlights: nil
                     ),
                     LegalSection(
                         title: "7. Pro Subscriptions, Auto-Renewal & Apple Standard EULA",
-                        body: "Homeschool Compass offers optional auto-renewable subscriptions ('Homeschool Compass Pro') providing unlimited student profiles, official report card generation, unlimited portfolio photo attachments, and automatic cloud backups.\n\n• Subscription Tiers: Annual Membership ($39.99/year, including a 7-day free trial where offered) and Monthly Membership ($4.99/month).\n• Payment: Payment will be charged to your Apple ID account at confirmation of purchase.\n• Auto-Renewal: Subscriptions automatically renew unless auto-renew is canceled at least 24 hours prior to the end of the current billing period. Your account will be charged for renewal within 24 hours prior to the end of the current period.\n• Subscription Management: You can manage or cancel your subscription at any time by going to your Apple ID Account Settings on your Apple device (Settings > Apple ID > Subscriptions).\n• Terms of Use (Apple Standard EULA): These terms incorporate and are governed by Apple's standard Licensed Application End User License Agreement (EULA), accessible at: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/.",
+                        body: "HomeschoolEZ offers optional auto-renewable subscriptions ('HomeschoolEZ Pro') providing unlimited student profiles, official report card generation, unlimited portfolio photo attachments, and automatic cloud backups.\n\n• Subscription Tiers: Annual Membership ($39.99/year, including a 7-day free trial where offered) and Monthly Membership ($4.99/month).\n• Payment: Payment will be charged to your Apple ID account at confirmation of purchase.\n• Auto-Renewal: Subscriptions automatically renew unless auto-renew is canceled at least 24 hours prior to the end of the current billing period. Your account will be charged for renewal within 24 hours prior to the end of the current period.\n• Subscription Management: You can manage or cancel your subscription at any time by going to your Apple ID Account Settings on your Apple device (Settings > Apple ID > Subscriptions).\n• Terms of Use (Apple Standard EULA): These terms incorporate and are governed by Apple's standard Licensed Application End User License Agreement (EULA), accessible at: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/.",
                         highlights: [
                             "Auto-renewing subscriptions charged to Apple ID",
                             "Cancel anytime in Apple ID Settings at least 24h before renewal",
-                            "Governed by Apple Standard EULA & Homeschool Compass Terms"
+                            "Governed by Apple Standard EULA & HomeschoolEZ Terms"
                         ]
                     )
                 ]
@@ -169,7 +169,7 @@ enum LegalDocumentType: String, Identifiable, CaseIterable {
         case .openSourceLicenses:
             return LegalDocument(
                 type: self,
-                summary: "Homeschool Compass is built with the help of high quality open-source libraries and frameworks.",
+                summary: "HomeschoolEZ is built with the help of high quality open-source libraries and frameworks.",
                 sections: [
                     LegalSection(
                         title: "Supabase Swift SDK",
@@ -178,7 +178,7 @@ enum LegalDocumentType: String, Identifiable, CaseIterable {
                     ),
                     LegalSection(
                         title: "Swift & Apple Frameworks",
-                        body: "Homeschool Compass is written in Swift using SwiftUI, Foundation, and UIKit under Apple Inc.'s developer agreements and the open source Apache 2.0 license with Runtime Library Exception.",
+                        body: "HomeschoolEZ is written in Swift using SwiftUI, Foundation, and UIKit under Apple Inc.'s developer agreements and the open source Apache 2.0 license with Runtime Library Exception.",
                         highlights: ["Apple Developer Tools", "Apache 2.0 / Apple Platform SDK"]
                     )
                 ]

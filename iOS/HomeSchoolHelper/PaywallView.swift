@@ -41,7 +41,7 @@ public struct PaywallView: View {
                                 )
                         }
 
-                        Text("Homeschool Compass Pro")
+                        Text("HomeschoolEZ Pro")
                             .font(.title.bold())
                             .multilineTextAlignment(.center)
 
@@ -411,7 +411,7 @@ public struct PaywallView: View {
         do {
             try await subscriptionManager.restorePurchases()
             if subscriptionManager.isPro {
-                alertMessage = "Your Homeschool Compass Pro subscription was successfully restored!"
+                alertMessage = "Your HomeschoolEZ Pro subscription was successfully restored!"
                 showAlert = true
             } else {
                 alertMessage = "No active subscription found for this Apple ID."
