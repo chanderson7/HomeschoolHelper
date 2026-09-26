@@ -1,4 +1,5 @@
 import SwiftUI
+import StoreKit
 import HomeschoolAuth
 import HomeschoolCore
 
@@ -18,9 +19,11 @@ struct SettingsView: View {
     @State private var showAccount = false
     @State private var showPINSheet = false
     @State private var showPaywall = false
+    @State private var showManageSubscriptions = false
     @State private var selectedLegalDocument: LegalDocumentType?
     @State private var confirmSignOut = false
     @State private var confirmEraseLocalData = false
+    @State private var confirmLoadSampleData = false
 
     private var appVersionString: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
@@ -95,23 +98,37 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 4)
 
-                    Button {
-                        showPaywall = true
-                    } label: {
-                        HStack {
-                            Label(
-                                subscriptionManager.isPro ? "Manage Pro Membership" : "Upgrade to Pro",
-                                systemImage: subscriptionManager.isPro ? "gearshape" : "arrow.up.circle.fill"
-                            )
-                            .foregroundStyle(Sage.accent)
-                            .font(.subheadline.weight(.semibold))
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                    if subscriptionManager.isPro {
+                        Button {
+                            showManageSubscriptions = true
+                        } label: {
+                            HStack {
+                                Label("Manage Pro Subscription", systemImage: "gearshape")
+                                    .foregroundStyle(Sage.accent)
+                                    .font(.subheadline.weight(.semibold))
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
+                        .accessibilityIdentifier("settingsManageProButton")
+                    } else {
+                        Button {
+                            showPaywall = true
+                        } label: {
+                            HStack {
+                                Label("Upgrade to Pro", systemImage: "arrow.up.circle.fill")
+                                    .foregroundStyle(Sage.accent)
+                                    .font(.subheadline.weight(.semibold))
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .accessibilityIdentifier("settingsProButton")
                     }
-                    .accessibilityIdentifier("settingsProButton")
                 }
 
                 // 1. Account & Sync
@@ -295,6 +312,14 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 4)
 
+                    Button {
+                        confirmLoadSampleData = true
+                    } label: {
+                        Label("Load Sample Household Data", systemImage: "sparkles.rectangle.stack")
+                            .foregroundStyle(Sage.accent)
+                    }
+                    .accessibilityIdentifier("settingsLoadSampleDataButton")
+
                     Button(role: .destructive) {
                         confirmEraseLocalData = true
                     } label: {
@@ -427,6 +452,20 @@ struct SettingsView: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("This permanently deletes all learners, lessons, attendance, and grades stored on this device and resets your household to blank. This action cannot be undone.")
+            }
+            .manageSubscriptionsSheet(isPresented: $showManageSubscriptions)
+            .confirmationDialog(
+                "Load Sample Household Data?",
+                isPresented: $confirmLoadSampleData,
+                titleVisibility: .visible
+            ) {
+                Button("Load Sample Household") {
+                    store.loadSampleHousehold()
+                }
+                .accessibilityIdentifier("confirmLoadSampleDataButton")
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This will populate your household with sample learners (Emma & Lucas), courses, lesson records, and grades for easy exploration.")
             }
             .accessibilityIdentifier("settingsView")
         }

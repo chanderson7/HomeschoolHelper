@@ -45,7 +45,7 @@ enum LegalDocumentType: String, Identifiable, CaseIterable {
         case .privacyPolicy:
             return URL(string: "https://homeschoohelp.netlify.app/privacy/")
         case .termsOfService:
-            return URL(string: "https://homeschoohelp.netlify.app/")
+            return URL(string: "https://homeschoohelp.netlify.app/terms/")
         case .openSourceLicenses:
             return URL(string: "https://github.com/chanderson7/HomeschoolHelper")
         }
@@ -95,12 +95,12 @@ enum LegalDocumentType: String, Identifiable, CaseIterable {
                         ]
                     ),
                     LegalSection(
-                        title: "5. Your Rights: Export & Deletion",
-                        body: "You maintain complete ownership of your educational records. You may delete individual learners, lessons, or attendance entries at any time. When you sign out or delete your account, your cloud backups can be deleted, and local device records can be cleared by deleting the application.",
+                        title: "5. Your Rights: In-App Account Deletion & Data Erasure",
+                        body: "You maintain complete ownership of your educational records. In compliance with Apple App Store Review Guideline 5.1.1(v) and global privacy regulations, HomeSchool Helper provides comprehensive in-app account deletion and data wiping mechanisms:\n\n• In-App Account Deletion: When signed in, navigate to Settings > Manage Backups & Restore > Delete Account. This immediately executes a secure database procedure that permanently deletes your cloud account and purges all school backup snapshots from our cloud database.\n• Flexible Local Data Control: When deleting your cloud account, you can choose to preserve your records locally on your device as an offline household, or perform a total wipe.\n• Offline Device Wipe: Offline users can permanently clear all local learner profiles, lessons, attendance, and grades at any time via Settings > Data & Storage > Erase All Device Data.",
                         highlights: [
-                            "Delete your cloud backups at any time in Account & Backups",
-                            "Full data exportability via standard JSON",
-                            "Permanent deletion available upon parent request"
+                            "Immediate permanent remote account deletion via in-app button",
+                            "Full choice to keep or erase local offline records",
+                            "One-tap device data erasure for offline households"
                         ]
                     ),
                     LegalSection(
@@ -154,6 +154,15 @@ enum LegalDocumentType: String, Identifiable, CaseIterable {
                         title: "6. Limitation of Liability",
                         body: "To the maximum extent permitted by law, HomeSchoolHelper and its creators shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising out of your use or inability to use the application.",
                         highlights: nil
+                    ),
+                    LegalSection(
+                        title: "7. Pro Subscriptions, Auto-Renewal & Apple Standard EULA",
+                        body: "HomeSchool Helper offers optional auto-renewable subscriptions ('HomeSchool Helper Pro') providing unlimited student profiles, official report card generation, unlimited portfolio photo attachments, and automatic cloud backups.\n\n• Subscription Tiers: Annual Membership ($39.99/year, including a 7-day free trial where offered) and Monthly Membership ($4.99/month).\n• Payment: Payment will be charged to your Apple ID account at confirmation of purchase.\n• Auto-Renewal: Subscriptions automatically renew unless auto-renew is canceled at least 24 hours prior to the end of the current billing period. Your account will be charged for renewal within 24 hours prior to the end of the current period.\n• Subscription Management: You can manage or cancel your subscription at any time by going to your Apple ID Account Settings on your Apple device (Settings > Apple ID > Subscriptions).\n• Terms of Use (Apple Standard EULA): These terms incorporate and are governed by Apple's standard Licensed Application End User License Agreement (EULA), accessible at: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/.",
+                        highlights: [
+                            "Auto-renewing subscriptions charged to Apple ID",
+                            "Cancel anytime in Apple ID Settings at least 24h before renewal",
+                            "Governed by Apple Standard EULA & HomeSchool Helper Terms"
+                        ]
                     )
                 ]
             )

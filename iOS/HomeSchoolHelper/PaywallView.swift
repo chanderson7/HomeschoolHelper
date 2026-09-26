@@ -9,6 +9,7 @@ public struct PaywallView: View {
     @State private var activeLegalDoc: LegalDocumentType?
     @State private var alertMessage: String?
     @State private var showAlert: Bool = false
+    @State private var showManageSubscriptions: Bool = false
 
     public init() {}
 
@@ -144,60 +145,104 @@ public struct PaywallView: View {
 
                     // Main Action CTA
                     VStack(spacing: 12) {
-                        Button {
-                            Task {
-                                await handlePurchase()
-                            }
-                        } label: {
-                            HStack {
-                                if subscriptionManager.isPurchasing {
-                                    ProgressView()
-                                        .tint(.white)
-                                        .padding(.trailing, 4)
+                        if subscriptionManager.isPro {
+                            VStack(spacing: 10) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "checkmark.seal.fill")
+                                        .font(.headline)
+                                        .foregroundStyle(Sage.accent)
+                                    Text("You have an active Pro Membership")
+                                        .font(.headline)
                                 }
-                                Text(ctaButtonText)
-                                    .font(.headline.weight(.bold))
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(
-                                LinearGradient(
-                                    colors: [Color.accentColor, Sage.accent],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                            .shadow(color: Sage.accent.opacity(0.3), radius: 8, x: 0, y: 4)
-                        }
-                        .disabled(subscriptionManager.isPurchasing)
-                        .accessibilityIdentifier("purchaseProButton")
+                                .padding(.vertical, 4)
 
-                        Button {
-                            Task {
-                                await handleRestore()
+                                Button {
+                                    showManageSubscriptions = true
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "gearshape")
+                                        Text("Manage Subscription")
+                                            .font(.headline.weight(.semibold))
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 16)
+                                    .background(Sage.accent)
+                                    .foregroundStyle(.white)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                                }
+                                .accessibilityIdentifier("manageProButton")
                             }
-                        } label: {
-                            Text("Restore Purchases")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                        } else {
+                            Button {
+                                Task {
+                                    await handlePurchase()
+                                }
+                            } label: {
+                                HStack {
+                                    if subscriptionManager.isPurchasing {
+                                        ProgressView()
+                                            .tint(.white)
+                                            .padding(.trailing, 4)
+                                    }
+                                    Text(ctaButtonText)
+                                        .font(.headline.weight(.bold))
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                                .background(
+                                    LinearGradient(
+                                        colors: [Color.accentColor, Sage.accent],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .foregroundStyle(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                                .shadow(color: Sage.accent.opacity(0.3), radius: 8, x: 0, y: 4)
+                            }
+                            .disabled(subscriptionManager.isPurchasing)
+                            .accessibilityIdentifier("purchaseProButton")
                         }
-                        .disabled(subscriptionManager.isPurchasing)
-                        .accessibilityIdentifier("restorePurchasesButton")
+
+                        HStack(spacing: 16) {
+                            Button {
+                                Task {
+                                    await handleRestore()
+                                }
+                            } label: {
+                                Text("Restore Purchases")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .disabled(subscriptionManager.isPurchasing)
+                            .accessibilityIdentifier("restorePurchasesButton")
+
+                            Text("•")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+
+                            Button {
+                                showManageSubscriptions = true
+                            } label: {
+                                Text("Manage Subscriptions")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .accessibilityIdentifier("manageSubscriptionsButton")
+                        }
                     }
                     .padding(.horizontal)
 
                     // Legal & Terms of Service Footer
                     VStack(spacing: 8) {
-                        Text("Subscriptions automatically renew unless canceled at least 24 hours before the end of the current period. Manage or cancel anytime in your Apple ID Account Settings.")
+                        Text("Payment will be charged to your Apple ID account at confirmation of purchase. Subscriptions automatically renew unless canceled at least 24 hours prior to the end of the current period. Manage or cancel anytime in your Apple ID Account Settings.")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 24)
 
                         HStack(spacing: 16) {
-                            Button("Terms of Service") {
+                            Button("Terms of Use (EULA)") {
                                 activeLegalDoc = .termsOfService
                             }
                             .font(.caption.weight(.medium))
@@ -235,6 +280,7 @@ public struct PaywallView: View {
             .sheet(item: $activeLegalDoc) { doc in
                 LegalDocumentView(documentType: doc)
             }
+            .manageSubscriptionsSheet(isPresented: $showManageSubscriptions)
             .alert("Subscription", isPresented: $showAlert) {
                 Button("OK", role: .cancel) {}
             } message: {

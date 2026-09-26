@@ -707,6 +707,12 @@ final class HomeschoolStore: ObservableObject {
     public func eraseAllData() -> Bool {
         restore(SchoolState())
     }
+
+    /// Loads a complete pre-populated sample household for evaluation and testing.
+    @discardableResult
+    public func loadSampleHousehold() -> Bool {
+        restore(SampleDataGenerator.generateSampleState())
+    }
 }
 
 struct AppMessage: Identifiable {

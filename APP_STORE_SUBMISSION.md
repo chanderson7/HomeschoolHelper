@@ -20,10 +20,11 @@ This document contains all verified metadata, store copy, in-app purchase config
 ---
 
 ### Links & URLs
-- **Marketing URL**: `https://homeschoohelp.netlify.app`
-- **Support URL**: `https://homeschoohelp.netlify.app`
-- **Privacy Policy URL**: `https://homeschoohelp.netlify.app/privacy`
-- **Terms of Service (EULA) URL**: `https://homeschoohelp.netlify.app/terms` (also governed by Apple Standard EULA)
+- **Marketing URL**: `https://homeschoohelp.netlify.app/`
+- **Support URL**: `https://homeschoohelp.netlify.app/support/`
+- **Privacy Policy URL**: `https://homeschoohelp.netlify.app/privacy/`
+- **Terms of Service (EULA) URL**: `https://homeschoohelp.netlify.app/terms/`
+- **Standard Apple EULA URL**: `https://www.apple.com/legal/internet-services/itunes/dev/stdeula/`
 
 ---
 
@@ -126,8 +127,9 @@ HomeSchool Helper operates on a privacy-first, local-first architecture. A user 
 
 QUICK START / SAMPLE DATA:
 To immediately review the app with a populated household (2 students, 3 courses with 18 lessons, attendance records, grades, reading logs, and portfolio items):
-1. On the initial welcome screen, tap the prominent button: "Load Sample Household (Quick Demo)".
-2. The app will immediately load our curated sample household (Emma & Lucas).
+1. Option A (First Launch): On the initial welcome screen, tap the prominent button: "Load Sample Household (Quick Demo)".
+2. Option B (Anytime): In Settings -> Data & Storage, tap "Load Sample Household Data".
+The app will immediately load our curated sample household (Emma & Lucas).
 
 OPTIONAL CLOUD SYNC DEMO ACCOUNT:
 If you wish to test Supabase cloud authentication and cross-device sync:
@@ -139,7 +141,7 @@ HARDWARE & PERMISSIONS JUSTIFICATION:
 - Photo Library (NSPhotoLibraryUsageDescription): Allows users to pick photos of student work/art to add to their student portfolio.
 
 IN-APP PURCHASES:
-StoreKit 2 auto-renewable subscriptions can be tested via standard Sandbox accounts. In addition, the app responds to the environment flag HSH_PRO_OVERRIDE=1 during automated UI testing.
+StoreKit 2 auto-renewable subscriptions can be tested via standard Sandbox accounts. In addition, the app responds to the environment flag HSH_PRO_OVERRIDE=1 during automated UI testing. Active subscribers can manage their subscription natively via StoreKit's manageSubscriptionsSheet in Settings or the Paywall.
 
 ACCOUNT DELETION & DATA ERASURE (Guideline 5.1.1(v)):
 - In-App Deletion: When signed in, navigate to Settings -> Manage Backups & Restore -> "Delete Account".
@@ -157,7 +159,21 @@ ACCOUNT DELETION & DATA ERASURE (Guideline 5.1.1(v)):
 
 ---
 
-## 4. App Privacy Nutrition Labels (Data Safety)
+## 5. Apple Privacy Manifest (`PrivacyInfo.xcprivacy`)
+In compliance with Apple's Spring 2024 Privacy Manifest mandate:
+- **Location**: `iOS/HomeSchoolHelper/PrivacyInfo.xcprivacy` (bundled into app root).
+- **Tracking**: `NSPrivacyTracking` = `false`.
+- **Required Reason APIs Declared**:
+  - `NSPrivacyAccessedAPICategoryUserDefaults` with reason `CA92.1` (reading and writing user preferences and local flags).
+  - `NSPrivacyAccessedAPICategoryFileTimestamp` with reason `C617.1` (accessing timestamps within the app's sandboxed container).
+- **Data Types Declared**:
+  - `NSPrivacyCollectedDataTypeEmailAddress` (App Functionality, linked to user when signed in).
+  - `NSPrivacyCollectedDataTypeUserID` (App Functionality, linked to user when signed in).
+  - `NSPrivacyCollectedDataTypeOtherUserContent` (App Functionality, linked to user when signed in).
+
+---
+
+## 6. App Privacy Nutrition Labels (Data Safety)
 
 Answer the App Store Connect Privacy Questionnaire as follows:
 
@@ -183,7 +199,7 @@ Answer the App Store Connect Privacy Questionnaire as follows:
 
 ---
 
-## 5. Build & Archive Instructions
+## 7. Build & Archive Instructions
 
 To generate the release archive locally or in CI:
 
