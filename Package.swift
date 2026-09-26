@@ -42,7 +42,8 @@ let package = Package(
                 "GradeBookView.swift",
                 "SubscriptionManager.swift",
                 "PaywallView.swift",
-                "CloudSyncManager.swift"
+                "CloudSyncManager.swift",
+                "Assets.xcassets"
             ],
             sources: ["HomeschoolStore.swift"]
         ),
