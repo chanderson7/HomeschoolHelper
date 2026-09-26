@@ -16,6 +16,7 @@ struct AccountView: View {
     @State private var pendingRestore: BackupSummary?
     @State private var confirmImport = false
     @State private var confirmUpload = false
+    @State private var confirmDeleteAccount = false
 
     private var isCurrentAccount: Bool { auth.phase == .signedIn(identity) }
     private var legacyAvailable: Bool { FileManager.default.fileExists(atPath: HomeschoolStore.defaultFileURL().path) }
@@ -25,9 +26,15 @@ struct AccountView: View {
             List {
                 Section("Your account") {
                     LabeledContent("Email", value: identity.email)
-                    Button("Sign out", role: .destructive) {
+                    Button("Sign out") {
                         Task { await auth.signOut() }
-                    }.accessibilityIdentifier("accountSignOut")
+                    }
+                    .accessibilityIdentifier("accountSignOut")
+
+                    Button("Delete Account", role: .destructive) {
+                        confirmDeleteAccount = true
+                    }
+                    .accessibilityIdentifier("accountDeleteButton")
                 }
 
                 Section("Automatic Cloud Sync") {
@@ -121,6 +128,25 @@ struct AccountView: View {
             .confirmationDialog("Import existing records into this account?", isPresented: $confirmImport, titleVisibility: .visible) {
                 Button("Import into \(identity.email)") { importLegacy() }
             } message: { Text("Only import records belonging to this family. Import does not upload them.") }
+            .confirmationDialog(
+                "Delete Account & Cloud Backups?",
+                isPresented: $confirmDeleteAccount,
+                titleVisibility: .visible
+            ) {
+                Button("Delete Cloud Account & Keep Device Data", role: .destructive) {
+                    Task { await deleteAccount(eraseLocal: false) }
+                }
+                .accessibilityIdentifier("deleteAccountKeepLocalButton")
+
+                Button("Delete Cloud Account & Erase All Device Data", role: .destructive) {
+                    Task { await deleteAccount(eraseLocal: true) }
+                }
+                .accessibilityIdentifier("deleteAccountEraseLocalButton")
+
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This permanently deletes your account and removes all cloud backup snapshots from our servers. You can choose whether to keep your homeschool records on this device or erase them.")
+            }
         }
     }
 
@@ -183,6 +209,26 @@ struct AccountView: View {
             let snapshot = try JSONSchoolRepository(fileURL: HomeschoolStore.defaultFileURL()).load()
             message = store.restore(snapshot) ? "Device records imported. The original file is unchanged." : "Couldn’t import records."
         } catch { message = "The existing records couldn’t be read. The original file is unchanged." }
+    }
+
+    private func deleteAccount(eraseLocal: Bool) async {
+        guard !busy, isCurrentAccount else { return }
+        busy = true
+        defer { busy = false }
+        do {
+            try await verifyIdentity()
+            // 1. Delete all backups for this user from cloud database
+            try? await auth.client.from("school_backups").delete().eq("user_id", value: identity.id).execute()
+            // 2. Delete remote account
+            await auth.deleteAccount()
+            // 3. If requested, wipe local data
+            if eraseLocal {
+                store.eraseAllData()
+            }
+            dismiss()
+        } catch {
+            message = "Couldn’t delete account. Please check your connection and try again."
+        }
     }
 }
 

@@ -20,6 +20,7 @@ struct SettingsView: View {
     @State private var showPaywall = false
     @State private var selectedLegalDocument: LegalDocumentType?
     @State private var confirmSignOut = false
+    @State private var confirmEraseLocalData = false
 
     private var appVersionString: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
@@ -293,6 +294,13 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 4)
+
+                    Button(role: .destructive) {
+                        confirmEraseLocalData = true
+                    } label: {
+                        Label("Erase All Device Data", systemImage: "trash")
+                    }
+                    .accessibilityIdentifier("settingsEraseLocalDataButton")
                 }
 
                 // 4. Legal & Privacy Policies
@@ -406,6 +414,19 @@ struct SettingsView: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("Your local records will remain safely saved on this device.")
+            }
+            .confirmationDialog(
+                "Erase All Household Records on This Device?",
+                isPresented: $confirmEraseLocalData,
+                titleVisibility: .visible
+            ) {
+                Button("Erase All Device Data", role: .destructive) {
+                    store.eraseAllData()
+                }
+                .accessibilityIdentifier("confirmEraseAllDataButton")
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This permanently deletes all learners, lessons, attendance, and grades stored on this device and resets your household to blank. This action cannot be undone.")
             }
             .accessibilityIdentifier("settingsView")
         }

@@ -140,7 +140,20 @@ HARDWARE & PERMISSIONS JUSTIFICATION:
 
 IN-APP PURCHASES:
 StoreKit 2 auto-renewable subscriptions can be tested via standard Sandbox accounts. In addition, the app responds to the environment flag HSH_PRO_OVERRIDE=1 during automated UI testing.
+
+ACCOUNT DELETION & DATA ERASURE (Guideline 5.1.1(v)):
+- In-App Deletion: When signed in, navigate to Settings -> Manage Backups & Restore -> "Delete Account".
+- Two user-choice deletion modes are provided:
+  1. "Delete Cloud Account & Keep Device Data": Permanently removes the remote account and deletes all cloud backup records from our database while preserving the parent's records locally on the device as an offline household.
+  2. "Delete Cloud Account & Erase All Device Data": Permanently removes the remote account, cloud backup records, and completely resets all device storage back to a blank state.
+- Local-Only Device Reset: For offline users, Settings -> Data & Storage -> "Erase All Device Data" allows completely wiping local device data.
 ```
+
+---
+
+## 4. Export Compliance & Encryption
+- **Uses Non-Exempt Encryption**: `NO` (`<key>ITSAppUsesNonExemptEncryption</key><false/>` in `Config/Info.plist`).
+- The application only uses standard system HTTPS/TLS connections for Supabase Auth/storage and StoreKit 2 APIs. No custom encryption or non-exempt algorithms are implemented.
 
 ---
 

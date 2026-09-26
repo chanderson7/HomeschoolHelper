@@ -40,6 +40,7 @@ protocol AuthClientDriving: AnyObject {
     func sendPasswordReset(email: String, redirectTo: URL) async throws
     func updatePassword(_ password: String) async throws
     func signOutRemotely() async throws
+    func deleteUserRemotely() async throws
     func clearLocalSession() async throws
     func exchangeCallbackCode(_ code: String) async throws
 }
@@ -91,6 +92,9 @@ private final class SupabaseAuthDriver: AuthClientDriving {
         _ = try await client.auth.update(user: UserAttributes(password: password))
     }
     func signOutRemotely() async throws { try await client.auth.signOut() }
+    func deleteUserRemotely() async throws {
+        _ = try await client.rpc("delete_user_account").execute()
+    }
     func clearLocalSession() async throws { try await client.auth.signOut(scope: .local) }
     func exchangeCallbackCode(_ code: String) async throws {
         _ = try await client.auth.exchangeCodeForSession(authCode: code)
@@ -276,6 +280,42 @@ public final class AuthStore: ObservableObject {
         isBusy = false
         if let remoteError {
             errorMessage = "Signed out on this device. The server could not be reached to revoke the session."
+        }
+    }
+
+    /// Permanently deletes the user's remote account and clears local credentials.
+    /// UI access is revoked immediately to prevent lingering access.
+    public func deleteAccount() async {
+        operationGeneration &+= 1
+        let generation = operationGeneration
+        ignoresLateSessionEvents = true
+        isRecoveringCallback = false
+        recoveryIdentity = nil
+        phase = .signedOut
+        errorMessage = nil
+        notice = nil
+        isBusy = true
+
+        var remoteError: Error?
+        do {
+            try await driver.deleteUserRemotely()
+        } catch {
+            remoteError = error
+        }
+
+        // Even if remote RPC fails or user was already purged, always clear local Keychain session.
+        do {
+            try await driver.clearLocalSession()
+        } catch {
+            if remoteError == nil {
+                remoteError = error
+            }
+        }
+
+        guard isCurrent(generation) else { return }
+        isBusy = false
+        if let remoteError {
+            errorMessage = "Account deleted on this device. The server could not be reached to confirm remote deletion."
         }
     }
 

@@ -63,6 +63,24 @@ final class AuthStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testDeleteAccountPurgesSessionAndClearsLocalCredentials() async {
+        let identity = AuthIdentity(id: UUID(), email: "parent@example.com")
+        let driver = AuthDriver(hasStoredSession: true, verifiedIdentity: identity)
+        let store = AuthStore(client: testClient(), driver: driver)
+
+        await store.start()
+        XCTAssertEqual(store.phase, .signedIn(identity))
+
+        await store.deleteAccount()
+        XCTAssertEqual(store.phase, .signedOut)
+
+        let deleteCount = await driver.remoteDeleteCount()
+        let clearCount = await driver.localClearCount()
+        XCTAssertEqual(deleteCount, 1)
+        XCTAssertEqual(clearCount, 1)
+    }
+
+    @MainActor
     func testHostileCallbackIsDeniedWithoutCodeExchange() async {
         let driver = AuthDriver(hasStoredSession: false)
         let store = AuthStore(client: testClient(), driver: driver)
@@ -162,6 +180,7 @@ private actor AuthDriver: AuthClientDriving {
     private var signInContinuation: CheckedContinuation<Void, Never>?
     private var signInStarted = false
     private var localClears = 0
+    private var remoteDeletes = 0
     private var passwordUpdates = 0
     private var callbackExchanges = 0
 
@@ -206,6 +225,7 @@ private actor AuthDriver: AuthClientDriving {
     func sendPasswordReset(email: String, redirectTo: URL) async throws {}
     func updatePassword(_ password: String) async throws { passwordUpdates += 1 }
     func signOutRemotely() async throws {}
+    func deleteUserRemotely() async throws { remoteDeletes += 1 }
     func clearLocalSession() async throws { localClears += 1 }
     func exchangeCallbackCode(_ code: String) async throws { callbackExchanges += 1 }
 
@@ -221,6 +241,7 @@ private actor AuthDriver: AuthClientDriving {
 
     func resumeSignIn() { signInContinuation?.resume(); signInContinuation = nil }
     func localClearCount() -> Int { localClears }
+    func remoteDeleteCount() -> Int { remoteDeletes }
     func updatePasswordCount() -> Int { passwordUpdates }
     func callbackExchangeCount() -> Int { callbackExchanges }
 }

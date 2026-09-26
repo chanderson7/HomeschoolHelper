@@ -701,6 +701,12 @@ final class HomeschoolStore: ObservableObject {
             copy = snapshot
         }
     }
+
+    /// Permanently wipes all local household records on this device and resets to a blank state.
+    @discardableResult
+    public func eraseAllData() -> Bool {
+        restore(SchoolState())
+    }
 }
 
 struct AppMessage: Identifiable {
