@@ -204,10 +204,9 @@ final class HomeSchoolHelperUITests: XCTestCase {
         app.tabBars.buttons["Plan"].tap()
         tap("addCourse", in: app.buttons)
         enter("Shared Math", into: app.textFields["courseTitle"])
-        let lessons = app.textViews["lessonTitles"]
-        XCTAssertTrue(lessons.waitForExistence(timeout: 2))
-        lessons.tap()
-        lessons.typeText("Lesson One\nLesson Two")
+        enter("Lesson One", into: app.textFields["lessonTitle-1"])
+        tap("addLessonDraft", in: app.buttons)
+        enter("Lesson Two", into: app.textFields["lessonTitle-2"])
         app.navigationBars["Build Sequence"].tap()
         app.swipeUp()
         setSwitch("courseStudent-Ada", enabled: true)

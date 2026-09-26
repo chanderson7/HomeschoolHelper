@@ -135,8 +135,8 @@ The app will immediately load our curated sample household (Emma & Lucas).
 
 APP REVIEW ACCOUNT:
 Verify this account and its credentials against the production Supabase project immediately before submission:
-- Email: demo@homeschoolhelper.app
-- Password: HomeschoolHelper2026!
+Email: [Enter the dedicated review account email directly in App Store Connect.]
+Password: [Retrieve from the password manager and enter directly in App Store Connect. Never commit credentials.]
 
 CLOUD BACKUP BEHAVIOR:
 - Automatic cloud snapshots of structured homeschool records are enabled by default for signed-in accounts and can be paused in Settings -> Manage Backups & Restore.

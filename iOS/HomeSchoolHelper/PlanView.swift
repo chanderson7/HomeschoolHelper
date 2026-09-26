@@ -702,12 +702,17 @@ private struct AddSingleLessonView: View {
 }
 
 
+private struct LessonDraft: Identifiable {
+    let id = UUID()
+    var title = ""
+}
+
 struct SequenceBuilderView: View {
     @EnvironmentObject private var store: HomeschoolStore
     @Environment(\.dismiss) private var dismiss
     @State private var courseTitle = ""
     @State private var selectedStudents = Set<UUID>()
-    @State private var lessonText = ""
+    @State private var lessonDrafts: [LessonDraft] = [LessonDraft()]
     @State private var datesLessons = true
     @State private var startDate = Date()
     @State private var weekdays: Set<Int> = [2, 3, 4, 5, 6]
@@ -716,6 +721,17 @@ struct SequenceBuilderView: View {
     @State private var weight: Double = 4.0
 
     private let weekdayNames = [(2, "Mon"), (3, "Tue"), (4, "Wed"), (5, "Thu"), (6, "Fri"), (7, "Sat"), (1, "Sun")]
+
+    private var lessonTitles: [String] {
+        lessonDrafts.map { $0.title.trimmingCharacters(in: .whitespacesAndNewlines) }
+    }
+
+    private var canCreateCourse: Bool {
+        !courseTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !selectedStudents.isEmpty &&
+        !lessonDrafts.isEmpty &&
+        lessonTitles.allSatisfy { !$0.isEmpty }
+    }
 
     var body: some View {
         NavigationStack {
@@ -726,11 +742,55 @@ struct SequenceBuilderView: View {
                 Section("Course") {
                     TextField("Course title", text: $courseTitle)
                         .accessibilityIdentifier("courseTitle")
-                    Text("Use one lesson title per line.").font(.footnote).foregroundStyle(.secondary)
-                    TextEditor(text: $lessonText)
-                        .frame(minHeight: 130)
-                        .accessibilityLabel("Lesson titles")
-                        .accessibilityIdentifier("lessonTitles")
+                }
+                Section {
+                    if lessonDrafts.isEmpty {
+                        ContentUnavailableView(
+                            "No Lessons Yet",
+                            systemImage: "list.bullet.rectangle",
+                            description: Text("Add the first lesson in this course.")
+                        )
+                    }
+
+                    ForEach($lessonDrafts) { $lesson in
+                        let lessonNumber = (lessonDrafts.firstIndex { $0.id == lesson.id } ?? 0) + 1
+                        HStack(spacing: 12) {
+                            Text("\(lessonNumber)")
+                                .font(.caption.bold())
+                                .foregroundStyle(Sage.accent)
+                                .frame(width: 28, height: 28)
+                                .background(Sage.accent.opacity(0.12), in: Circle())
+
+                            TextField("Lesson title", text: $lesson.title)
+                                .textInputAutocapitalization(.sentences)
+                                .accessibilityLabel("Lesson \(lessonNumber) title")
+                                .accessibilityIdentifier("lessonTitle-\(lessonNumber)")
+
+                            Button(role: .destructive) {
+                                withAnimation {
+                                    lessonDrafts.removeAll { $0.id == lesson.id }
+                                }
+                            } label: {
+                                Image(systemName: "trash")
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Delete lesson \(lessonNumber)")
+                            .accessibilityIdentifier("deleteLessonDraft-\(lessonNumber)")
+                        }
+                    }
+
+                    Button {
+                        withAnimation {
+                            lessonDrafts.append(LessonDraft())
+                        }
+                    } label: {
+                        Label("Add Another Lesson", systemImage: "plus.circle.fill")
+                    }
+                    .accessibilityIdentifier("addLessonDraft")
+                } header: {
+                    Text("Lessons")
+                } footer: {
+                    Text("Add, rename, or remove lessons individually. You can continue editing the sequence from its course roadmap after creation.")
                 }
                 Section("Learners") {
                     if store.state.students.isEmpty {
@@ -807,13 +867,12 @@ struct SequenceBuilderView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: dismiss.callAsFunction) }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Create") {
-                        let lessons = lessonText.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
                         let credits = hasCredits ? creditHours : nil
                         let w = hasCredits ? weight : nil
                         if store.addCourse(
                             title: courseTitle,
                             studentIDs: Array(selectedStudents),
-                            lessonTitles: lessons,
+                            lessonTitles: lessonTitles,
                             startDay: datesLessons ? SchoolDate.string(startDate) : nil,
                             weekdays: weekdays,
                             creditHours: credits,
@@ -822,11 +881,10 @@ struct SequenceBuilderView: View {
                             dismiss()
                         }
                     }
-                    .disabled(store.state.students.isEmpty)
+                    .disabled(!canCreateCourse)
                     .accessibilityIdentifier("saveCourse")
                 }
             }
         }
     }
 }
-

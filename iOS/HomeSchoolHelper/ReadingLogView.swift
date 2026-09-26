@@ -281,12 +281,12 @@ struct BookCardView: View {
             // Book cover / icon pill
             ZStack {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(book.status == .completed ? Color.green.opacity(0.12) : Sage.accent.opacity(0.12))
+                    .fill(Sage.accent.opacity(0.12))
                     .frame(width: 44, height: 60)
 
                 Image(systemName: book.format.systemImage)
                     .font(.title3)
-                    .foregroundStyle(book.status == .completed ? Color.green : Sage.accent)
+                    .foregroundStyle(Sage.accent)
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -337,7 +337,7 @@ struct BookCardView: View {
                     let current = book.currentPage ?? 0
                     VStack(alignment: .leading, spacing: 3) {
                         ProgressView(value: progressRatio)
-                            .tint(book.status == .completed ? Color.green : Sage.accent)
+                            .tint(Sage.accent)
 
                         HStack {
                             Text("Page \(current) of \(total)")
@@ -383,8 +383,8 @@ struct BookCardView: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(Color.green.opacity(0.15), in: Capsule())
-            .foregroundStyle(.green)
+            .background(Sage.accent.opacity(0.15), in: Capsule())
+            .foregroundStyle(Sage.accent)
         case .wantToRead:
             Text("Want to Read")
                 .font(.caption2.weight(.semibold))
@@ -682,8 +682,8 @@ struct BookDetailView: View {
                                     }
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 12)
-                                    .background(Color.green.opacity(0.15))
-                                    .foregroundStyle(.green)
+                                    .background(Sage.accent.opacity(0.15))
+                                    .foregroundStyle(Sage.accent)
                                     .clipShape(RoundedRectangle(cornerRadius: 12))
                                 }
                                 .accessibilityIdentifier("markBookCompletedButton")
@@ -845,7 +845,7 @@ struct BookDetailView: View {
             }
 
             ProgressView(value: ratio)
-                .tint(book.status == .completed ? Color.green : Sage.accent)
+                .tint(Sage.accent)
 
             HStack {
                 Text("Page \(current) of \(total)")

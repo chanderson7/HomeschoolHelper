@@ -230,7 +230,7 @@ struct ISBNScannerSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Book Found", systemImage: "checkmark.circle.fill")
                 .font(.headline)
-                .foregroundStyle(.green)
+                .foregroundStyle(Sage.accent)
             VStack(alignment: .leading, spacing: 4) {
                 Text(result.title).font(.title3.bold())
                 Text(result.author).foregroundStyle(.secondary)
