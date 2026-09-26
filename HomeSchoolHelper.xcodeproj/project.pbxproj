@@ -244,7 +244,7 @@
 				CODE_SIGN_ENTITLEMENTS = Config/HomeSchoolHelper.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 26BWL2RFDX;
+				DEVELOPMENT_TEAM = HR8DRGNMZW;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Config/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "HomeschoolEZ";
@@ -271,7 +271,7 @@
 				CODE_SIGN_ENTITLEMENTS = Config/HomeSchoolHelper.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 26BWL2RFDX;
+				DEVELOPMENT_TEAM = HR8DRGNMZW;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Config/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "HomeschoolEZ";

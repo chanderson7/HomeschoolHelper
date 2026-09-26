@@ -43,7 +43,8 @@ let package = Package(
                 "SubscriptionManager.swift",
                 "PaywallView.swift",
                 "CloudSyncManager.swift",
-                "Assets.xcassets"
+                "Assets.xcassets",
+                "PrivacyInfo.xcprivacy"
             ],
             sources: ["HomeschoolStore.swift"]
         ),
