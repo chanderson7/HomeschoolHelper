@@ -249,10 +249,33 @@ struct Metric: View {
 
 struct SaveStatusToolbar: ToolbarContent {
     @EnvironmentObject private var store: HomeschoolStore
+    @ObservedObject private var cloudSync = CloudSyncManager.shared
+
     var body: some ToolbarContent {
         ToolbarItem(placement: .status) {
-            Label(store.isSaving ? "Saving" : "Saved locally", systemImage: store.isSaving ? "arrow.triangle.2.circlepath" : "checkmark.icloud")
-                .font(.caption2).foregroundStyle(.secondary)
+            let labelText: String = {
+                if store.isSaving {
+                    return "Saving locally…"
+                } else if cloudSync.syncStatus == .syncing {
+                    return "Syncing to cloud…"
+                } else {
+                    return "Saved locally"
+                }
+            }()
+
+            let iconName: String = {
+                if store.isSaving || cloudSync.syncStatus == .syncing {
+                    return "arrow.triangle.2.circlepath"
+                } else if case .synced = cloudSync.syncStatus {
+                    return "checkmark.icloud.fill"
+                } else {
+                    return "checkmark.icloud"
+                }
+            }()
+
+            Label(labelText, systemImage: iconName)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
     }
 }

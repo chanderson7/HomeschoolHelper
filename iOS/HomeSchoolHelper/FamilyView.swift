@@ -6,6 +6,7 @@ struct FamilyView: View {
     @State private var showAccount = false
     @EnvironmentObject private var store: HomeschoolStore
     @State private var showAddStudent = false
+    @State private var showPaywall = false
     @State private var editingStudent: Student?
     @State private var studentToDelete: Student?
 
@@ -96,9 +97,15 @@ struct FamilyView: View {
                         }
                     }
 
-                    Button("Add Learner", systemImage: "plus") { showAddStudent = true }
-                        .font(.headline.weight(.semibold))
-                        .accessibilityIdentifier("addStudent")
+                    Button("Add Learner", systemImage: "plus") {
+                        if store.state.students.count >= 1 && !SubscriptionManager.shared.isPro {
+                            showPaywall = true
+                        } else {
+                            showAddStudent = true
+                        }
+                    }
+                    .font(.headline.weight(.semibold))
+                    .accessibilityIdentifier("addStudent")
                 }
 
                 Section("Your data & privacy") {
@@ -126,6 +133,7 @@ struct FamilyView: View {
             }
             .toolbar { SaveStatusToolbar() }
             .sheet(isPresented: $showAddStudent) { AddStudentView() }
+            .sheet(isPresented: $showPaywall) { PaywallView() }
             .sheet(item: $editingStudent) { student in
                 EditStudentView(student: student)
             }

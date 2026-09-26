@@ -7,6 +7,8 @@ struct AccountView: View {
     @EnvironmentObject private var auth: AuthStore
     @EnvironmentObject private var store: HomeschoolStore
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var cloudSync = CloudSyncManager.shared
+    @AppStorage("auto_cloud_sync_enabled") private var autoSyncEnabled = true
     let identity: AuthIdentity
     @State private var backups: [BackupSummary] = []
     @State private var busy = false
@@ -27,10 +29,55 @@ struct AccountView: View {
                         Task { await auth.signOut() }
                     }.accessibilityIdentifier("accountSignOut")
                 }
-                Section("Private cloud backups") {
-                    Text("Save a copy of this account’s records to Supabase. Backups are private to your account. Changes are not synchronized automatically between devices.")
+
+                Section("Automatic Cloud Sync") {
+                    Toggle("Automatic Cloud Sync", isOn: $autoSyncEnabled)
+                        .onChange(of: autoSyncEnabled) { _, newValue in
+                            cloudSync.setAutoSyncEnabled(newValue)
+                        }
+                        .accessibilityIdentifier("autoSyncToggle")
+
+                    HStack {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Sync Status")
+                                    .font(.subheadline)
+                                Text(cloudSync.syncStatus.displayText)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: cloudSync.syncStatus.systemImage)
+                                .foregroundStyle(cloudSync.syncStatus == .syncing ? Sage.accent : .secondary)
+                        }
+
+                        Spacer()
+
+                        if cloudSync.syncStatus == .syncing {
+                            ProgressView()
+                        } else if autoSyncEnabled {
+                            Button("Sync Now") {
+                                Task {
+                                    await cloudSync.flushNow(state: store.state, userID: identity.id, client: auth.client)
+                                    await loadBackups()
+                                }
+                            }
+                            .font(.caption.weight(.semibold))
+                            .buttonStyle(.bordered)
+                            .accessibilityIdentifier("manualSyncNowButton")
+                        }
+                    }
+                    .accessibilityIdentifier("cloudSyncStatusRow")
+
+                    Text("When enabled, changes to your lessons, attendance, and grades are automatically backed up to your private cloud storage.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Cloud Backup Snapshots") {
+                    Text("Historical backup snapshots saved to your Supabase account. You can restore previous states or manually trigger a new snapshot.")
                         .font(.footnote).foregroundStyle(.secondary)
-                    Button("Back up current records") { confirmUpload = true }
+                    Button("Save Snapshot Now") { confirmUpload = true }
                         .disabled(busy || store.loadError != nil)
                         .accessibilityIdentifier("uploadBackup")
                     Button("Refresh backups") { Task { await loadBackups() } }.disabled(busy)

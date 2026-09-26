@@ -1297,5 +1297,29 @@ final class SchoolStateTests: XCTestCase {
         try state.deleteCourse(id: courseID)
         XCTAssertEqual(state.gradeCategories.count, 0)
     }
+
+    func testSampleDataGeneratorIntegrityAndValidation() throws {
+        let sample = SampleDataGenerator.generateSampleState()
+        XCTAssertNoThrow(try sample.validate())
+
+        XCTAssertEqual(sample.students.count, 2)
+        XCTAssertEqual(sample.courses.count, 3)
+        XCTAssertEqual(sample.academicYears.count, 1)
+        XCTAssertEqual(sample.terms.count, 2)
+        XCTAssertEqual(sample.books.count, 3)
+        XCTAssertEqual(sample.readingLogs.count, 3)
+        XCTAssertEqual(sample.portfolioItems.count, 2)
+        XCTAssertEqual(sample.selectedStateCode, "FL")
+        XCTAssertFalse(sample.assignments.isEmpty)
+        XCTAssertFalse(sample.attendance.isEmpty)
+
+        // Verify JSON roundtrip
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        let data = try encoder.encode(sample)
+        let decoded = try decoder.decode(SchoolState.self, from: data)
+        XCTAssertEqual(sample, decoded)
+        XCTAssertNoThrow(try decoded.validate())
+    }
 }
 

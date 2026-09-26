@@ -5,7 +5,17 @@ enum SupabaseConfiguration {
     // Publishable client key, not a server secret. Database RLS enforces access.
     static let projectURL = URL(string: "https://etzlarmryjtukopwfmru.supabase.co")!
     static let publishableKey = "sb_publishable_Ll7Spia4Xi8PDIlS1BzN0A__RIQntGi"
-    static let callbackURL = URL(string: "homeschoolhelper://auth/callback")!
+    static let universalCallbackURL = URL(string: "https://homeschoohelp.netlify.app/auth/callback")!
+    static let customSchemeCallbackURL = URL(string: "homeschoolhelper://auth/callback")!
+
+    static var callbackURL: URL {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["HSH_USE_CUSTOM_SCHEME_CALLBACK"] == "1" {
+            return customSchemeCallbackURL
+        }
+        #endif
+        return universalCallbackURL
+    }
 
     static func makeClient() -> SupabaseClient {
         var storageKey = "homeschoolhelper-auth-v1"

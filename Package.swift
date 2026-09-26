@@ -39,7 +39,10 @@ let package = Package(
                 "FamilyView.swift",
                 "ReadingLogView.swift",
                 "ISBNScannerView.swift",
-                "GradeBookView.swift"
+                "GradeBookView.swift",
+                "SubscriptionManager.swift",
+                "PaywallView.swift",
+                "CloudSyncManager.swift"
             ],
             sources: ["HomeschoolStore.swift"]
         ),

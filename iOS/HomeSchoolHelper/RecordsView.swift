@@ -965,6 +965,7 @@ private struct ExportRecordsSheet: View {
 
     @State private var exportedFile: ExportedReportFile?
     @State private var exportError: String?
+    @State private var showPaywall: Bool = false
 
     init(initialYear: AcademicYear, initialReportType: ReportType = .attendance) {
         self.initialYear = initialYear
@@ -1083,21 +1084,45 @@ private struct ExportRecordsSheet: View {
 
                 if let file = exportedFile {
                     Section {
-                        ShareLink(
-                            item: file.fileURL,
-                            preview: SharePreview(file.fileName, icon: Image(systemName: "doc.text.fill"))
-                        ) {
-                            HStack {
-                                Spacer()
-                                Label("Share / Save Official Record", systemImage: "square.and.arrow.up")
-                                    .font(.headline)
-                                Spacer()
+                        if reportType == .reportCard && !SubscriptionManager.shared.isPro {
+                            VStack(spacing: 8) {
+                                Button {
+                                    showPaywall = true
+                                } label: {
+                                    HStack {
+                                        Spacer()
+                                        Label("Unlock Official Report Card with Pro", systemImage: "sparkles")
+                                            .font(.headline)
+                                        Spacer()
+                                    }
+                                    .padding(.vertical, 4)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(Sage.accent)
+                                .accessibilityIdentifier("unlockReportCardWithProButton")
+
+                                Text("Free plan includes Attendance, Activity Logs, and Calendar Exports. Official Report Cards & Transcripts require Pro.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.center)
                             }
-                            .padding(.vertical, 4)
+                        } else {
+                            ShareLink(
+                                item: file.fileURL,
+                                preview: SharePreview(file.fileName, icon: Image(systemName: "doc.text.fill"))
+                            ) {
+                                HStack {
+                                    Spacer()
+                                    Label("Share / Save Official Record", systemImage: "square.and.arrow.up")
+                                        .font(.headline)
+                                    Spacer()
+                                }
+                                .padding(.vertical, 4)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(Sage.accent)
+                            .accessibilityIdentifier("shareOfficialRecordButton")
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(Sage.accent)
-                        .accessibilityIdentifier("shareOfficialRecordButton")
                     }
                 }
             }
@@ -1107,6 +1132,9 @@ private struct ExportRecordsSheet: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done", action: dismiss.callAsFunction)
                 }
+            }
+            .sheet(isPresented: $showPaywall) {
+                PaywallView()
             }
             .onAppear {
                 generateReport()

@@ -232,13 +232,27 @@ struct OnboardingView: View {
                         .padding(.horizontal, 16)
                     }
 
-                    // Secondary action: Explore first
-                    Button(action: onExplore) {
-                        Text("Explore without adding a subject")
-                            .font(.footnote.weight(.medium))
-                            .foregroundStyle(.secondary)
+                    // Secondary actions: Sample Household & Explore
+                    VStack(spacing: 12) {
+                        Button {
+                            loadSampleHousehold()
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "sparkles.rectangle.stack")
+                                Text("Load Sample Household (Quick Demo)")
+                            }
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Sage.accent)
+                        }
+                        .accessibilityIdentifier("loadSampleHouseholdButton")
+
+                        Button(action: onExplore) {
+                            Text("Explore without adding a subject")
+                                .font(.footnote.weight(.medium))
+                                .foregroundStyle(.secondary)
+                        }
+                        .accessibilityIdentifier("skipOnboarding")
                     }
-                    .accessibilityIdentifier("skipOnboarding")
                     .padding(.bottom, 24)
                 }
             }
@@ -307,6 +321,11 @@ struct OnboardingView: View {
                 weekdays: weekdays
             )
         }
+    }
+
+    private func loadSampleHousehold() {
+        let sample = SampleDataGenerator.generateSampleState()
+        _ = store.restore(sample)
     }
 }
 

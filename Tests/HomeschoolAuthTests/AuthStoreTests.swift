@@ -76,6 +76,51 @@ final class AuthStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testUniversalLinkConfirmationCallbackExchangesThenEntersVerifiedSession() async {
+        let identity = AuthIdentity(id: UUID(), email: "parent@example.com")
+        let driver = AuthDriver(hasStoredSession: false, verifiedIdentity: identity)
+        let store = AuthStore(client: testClient(), driver: driver)
+
+        await store.handleCallback(URL(string: "https://homeschoohelp.netlify.app/auth/callback?code=univ-code-123")!)
+
+        XCTAssertEqual(store.phase, .signedIn(identity))
+        let exchangeCount = await driver.callbackExchangeCount()
+        XCTAssertEqual(exchangeCount, 1)
+    }
+
+    @MainActor
+    func testUniversalLinkRecoveryCallbackExchangesThenTransitionsToPasswordRecovery() async {
+        let identity = AuthIdentity(id: UUID(), email: "parent@example.com")
+        let driver = AuthDriver(hasStoredSession: false, verifiedIdentity: identity)
+        let store = AuthStore(client: testClient(), driver: driver)
+
+        await store.handleCallback(URL(string: "https://homeschoohelp.netlify.app/auth/recovery?code=univ-rec-456")!)
+
+        XCTAssertEqual(store.phase, .passwordRecovery(identity))
+        let exchangeCount = await driver.callbackExchangeCount()
+        XCTAssertEqual(exchangeCount, 1)
+    }
+
+    @MainActor
+    func testHostileUniversalLinkIsDeniedWithoutCodeExchange() async {
+        let driver = AuthDriver(hasStoredSession: false)
+        let store = AuthStore(client: testClient(), driver: driver)
+
+        // Invalid host
+        await store.handleCallback(URL(string: "https://evil.netlify.app/auth/callback?code=abc")!)
+        XCTAssertEqual(store.phase, .loading)
+        XCTAssertEqual(store.errorMessage, "That sign-in link is not valid for this app.")
+
+        // Invalid path on valid host
+        await store.handleCallback(URL(string: "https://homeschoohelp.netlify.app/api/hijack?code=abc")!)
+        XCTAssertEqual(store.phase, .loading)
+        XCTAssertEqual(store.errorMessage, "That sign-in link is not valid for this app.")
+
+        let exchangeCount = await driver.callbackExchangeCount()
+        XCTAssertEqual(exchangeCount, 0)
+    }
+
+    @MainActor
     func testSignOutWinsOverLateSignInResponse() async {
         let identity = AuthIdentity(id: UUID(), email: "parent@example.com")
         let driver = AuthDriver(hasStoredSession: false, verifiedIdentity: identity, pauseSignIn: true)

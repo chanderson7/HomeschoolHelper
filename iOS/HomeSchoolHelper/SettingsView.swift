@@ -13,8 +13,11 @@ struct SettingsView: View {
     @AppStorage("default_cadence") private var defaultCadence: String = "schoolDays"
     @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
 
+    @ObservedObject private var subscriptionManager = SubscriptionManager.shared
+
     @State private var showAccount = false
     @State private var showPINSheet = false
+    @State private var showPaywall = false
     @State private var selectedLegalDocument: LegalDocumentType?
     @State private var confirmSignOut = false
 
@@ -41,6 +44,73 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 4)
+                }
+
+                // HomeSchool Helper Pro
+                Section("HomeSchool Helper Pro") {
+                    HStack(spacing: 14) {
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color.orange.opacity(0.2), Sage.accent.opacity(0.2)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 44, height: 44)
+                            Image(systemName: subscriptionManager.isPro ? "crown.fill" : "sparkles")
+                                .font(.title3.bold())
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.orange, Sage.accent],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                        }
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 6) {
+                                Text("Membership Status")
+                                    .font(.headline)
+                                Text(subscriptionManager.isPro ? "PRO ACTIVE" : "FREE PLAN")
+                                    .font(.caption2.bold())
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(subscriptionManager.isPro ? Sage.accent : Color.secondary.opacity(0.2))
+                                    .foregroundStyle(subscriptionManager.isPro ? Color.white : Color.primary)
+                                    .clipShape(Capsule())
+                            }
+
+                            Text(
+                                subscriptionManager.isPro
+                                    ? "Full access to unlimited students, GPA, reports, and auto-sync."
+                                    : "Limited to 1 student. Upgrade for unlimited students, reports & sync."
+                            )
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+
+                    Button {
+                        showPaywall = true
+                    } label: {
+                        HStack {
+                            Label(
+                                subscriptionManager.isPro ? "Manage Pro Membership" : "Upgrade to Pro",
+                                systemImage: subscriptionManager.isPro ? "gearshape" : "arrow.up.circle.fill"
+                            )
+                            .foregroundStyle(Sage.accent)
+                            .font(.subheadline.weight(.semibold))
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .accessibilityIdentifier("settingsProButton")
                 }
 
                 // 1. Account & Sync
@@ -325,6 +395,9 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showPINSheet) {
                 ParentPINManagementSheet()
+            }
+            .sheet(isPresented: $showPaywall) {
+                PaywallView()
             }
             .confirmationDialog("Are you sure you want to sign out?", isPresented: $confirmSignOut, titleVisibility: .visible) {
                 Button("Sign Out", role: .destructive) {

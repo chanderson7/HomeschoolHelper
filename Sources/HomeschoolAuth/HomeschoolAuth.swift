@@ -473,18 +473,31 @@ public final class AuthStore: ObservableObject {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
             return nil
         }
-        guard components.scheme?.lowercased() == "homeschoolhelper",
-              components.host?.lowercased() == "auth",
-              components.port == nil,
+        guard components.port == nil,
               components.user == nil,
               components.password == nil
         else {
             return nil
         }
-        switch components.path {
-        case "/callback": return .confirmation
-        case "/recovery": return .recovery
-        default: return nil
+
+        let scheme = components.scheme?.lowercased()
+        let host = components.host?.lowercased()
+        let path = components.path.lowercased()
+
+        if scheme == "homeschoolhelper" && host == "auth" {
+            switch path {
+            case "/callback", "callback": return .confirmation
+            case "/recovery", "recovery": return .recovery
+            default: return nil
+            }
+        } else if scheme == "https" && host == "homeschoohelp.netlify.app" {
+            switch path {
+            case "/auth/callback", "auth/callback": return .confirmation
+            case "/auth/recovery", "auth/recovery": return .recovery
+            default: return nil
+            }
+        } else {
+            return nil
         }
     }
 

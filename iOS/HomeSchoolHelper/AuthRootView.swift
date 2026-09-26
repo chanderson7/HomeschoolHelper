@@ -43,7 +43,10 @@ struct AuthRootView: View {
 
 private struct SignedInSchoolView: View {
     let identity: AuthIdentity
+    @EnvironmentObject private var auth: AuthStore
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var store: HomeschoolStore
+    @ObservedObject private var cloudSync = CloudSyncManager.shared
 
     init(identity: AuthIdentity) {
         self.identity = identity
@@ -56,6 +59,16 @@ private struct SignedInSchoolView: View {
         HomeTabView()
             .environmentObject(store)
             .environment(\.signedInIdentity, identity)
+            .onChange(of: store.state) { _, newState in
+                cloudSync.scheduleAutoSync(state: newState, userID: identity.id, client: auth.client)
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .background {
+                    Task {
+                        await cloudSync.flushNow(state: store.state, userID: identity.id, client: auth.client)
+                    }
+                }
+            }
     }
 }
 
