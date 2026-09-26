@@ -12,7 +12,7 @@ This document contains all verified metadata, store copy, in-app purchase config
 - **Primary Category**: Education
 - **Secondary Category**: Productivity
 - **Age Rating**: 4+ (No violence, realistic gambling, profanity, or mature content)
-- **Bundle ID**: `com.chanderson7.HomeSchoolHelper`
+- **Bundle ID**: `com.andersonsites.homeschoolhelper`
 - **SKU**: `HSH-IOS-001`
 - **Copyright**: `© 2026 HomeSchool Helper. All rights reserved.`
 - **Primary Language**: English (U.S.)
@@ -100,7 +100,7 @@ Configure the following auto-renewable subscription group in App Store Connect:
 
 #### Tier 1: Annual Membership (Recommended)
 - **Reference Name**: `HomeSchool Helper Pro Annual`
-- **Product ID**: `com.chanderson7.HomeSchoolHelper.pro.annual`
+- **Product ID**: `com.andersonsites.homeschoolhelper.pro.annual`
 - **Duration**: 1 Year
 - **Price**: $39.99 USD
 - **Introductory Offer**: 7-Day Free Trial
@@ -109,7 +109,7 @@ Configure the following auto-renewable subscription group in App Store Connect:
 
 #### Tier 2: Monthly Membership
 - **Reference Name**: `HomeSchool Helper Pro Monthly`
-- **Product ID**: `com.chanderson7.HomeSchoolHelper.pro.monthly`
+- **Product ID**: `com.andersonsites.homeschoolhelper.pro.monthly`
 - **Duration**: 1 Month
 - **Price**: $4.99 USD
 - **Subscription Display Name**: `Monthly Pro Membership`

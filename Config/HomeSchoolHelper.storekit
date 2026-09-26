@@ -46,7 +46,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.chanderson7.HomeSchoolHelper.pro.monthly",
+          "productID" : "com.andersonsites.homeschoolhelper.pro.monthly",
           "recurringSubscriptionPeriod" : "P1M",
           "referenceName" : "Pro Monthly",
           "subscriptionGroupID" : "21456789",
@@ -72,7 +72,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.chanderson7.HomeSchoolHelper.pro.annual",
+          "productID" : "com.andersonsites.homeschoolhelper.pro.annual",
           "recurringSubscriptionPeriod" : "P1Y",
           "referenceName" : "Pro Annual",
           "subscriptionGroupID" : "21456789",
