@@ -49,7 +49,7 @@ struct FamilyView: View {
                                             .font(.headline.weight(.bold))
                                             .foregroundStyle(.primary)
 
-                                        Text(student.gradeLevel.isEmpty ? "Grade level not set" : "Grade \(student.gradeLevel)")
+                                        Text(student.gradeLevel.isEmpty ? "Grade level not set" : student.gradeLevel)
                                             .font(.caption.weight(.bold))
                                             .foregroundStyle(Sage.accent)
                                             .padding(.horizontal, 8)
@@ -122,7 +122,7 @@ struct FamilyView: View {
                     Label("Saved on this device", systemImage: "lock.shield.fill")
                         .font(.headline)
                         .foregroundStyle(Sage.accent)
-                    Text("Records are saved on this device for your signed-in account. You can create private cloud backups from Account & cloud backups.")
+                    Text("Records are saved on this device and backed up automatically while cloud backup is enabled. Manage backup history from Account & cloud backups.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -180,7 +180,12 @@ private struct EditStudentView: View {
                 }
                 Section("Learner details") {
                     TextField("Name", text: $name).accessibilityIdentifier("editStudentName")
-                    TextField("Grade level", text: $gradeLevel).accessibilityIdentifier("editStudentGrade")
+                    LabeledContent("Grade Level") {
+                        GradeLevelMenu(
+                            selection: $gradeLevel,
+                            accessibilityIdentifier: "editStudentGrade"
+                        )
+                    }
                 }
             }
             .navigationTitle("Edit Learner")
@@ -213,7 +218,12 @@ struct AddStudentView: View {
                 }
                 Section("Learner details") {
                     TextField("Name", text: $name).accessibilityIdentifier("studentName")
-                    TextField("Grade level", text: $gradeLevel).accessibilityIdentifier("studentGrade")
+                    LabeledContent("Grade Level") {
+                        GradeLevelMenu(
+                            selection: $gradeLevel,
+                            accessibilityIdentifier: "studentGrade"
+                        )
+                    }
                 }
             }
             .navigationTitle("Add Learner")
@@ -229,4 +239,3 @@ struct AddStudentView: View {
         }
     }
 }
-

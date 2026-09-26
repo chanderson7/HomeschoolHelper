@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// An accessible, dedicated viewer for legal documents like Privacy Policy and Terms of Service.
+/// An accessible, dedicated viewer for acknowledgments maintained with the app.
 struct LegalDocumentView: View {
     @Environment(\.dismiss) private var dismiss
     let documentType: LegalDocumentType
@@ -114,5 +114,5 @@ struct LegalDocumentView: View {
 }
 
 #Preview {
-    LegalDocumentView(documentType: .privacyPolicy)
+    LegalDocumentView(documentType: .openSourceLicenses)
 }

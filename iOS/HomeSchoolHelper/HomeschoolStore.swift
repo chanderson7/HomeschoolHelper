@@ -8,8 +8,6 @@ final class HomeschoolStore: ObservableObject {
     @Published private(set) var loadError: String?
     @Published var presentedError: AppMessage?
     @Published private(set) var isSaving = false
-    @Published var isStudentModeActive: Bool = false
-    @Published var activeStudentModeStudentID: UUID? = nil
     @Published var dailyReminderEnabled: Bool {
         didSet {
             UserDefaults.standard.set(dailyReminderEnabled, forKey: "hsh_daily_reminder_enabled")
@@ -142,34 +140,6 @@ final class HomeschoolStore: ObservableObject {
             result = try state.rescheduleOverduePaced(from: startDay, studentID: studentID, weekdays: weekdays)
         }
         return ok ? result : nil
-    }
-
-    func enterStudentMode(for studentID: UUID? = nil) {
-        activeStudentModeStudentID = studentID ?? state.students.first?.id
-        isStudentModeActive = true
-    }
-
-    @discardableResult
-    func exitStudentMode(pin: String) -> Bool {
-        guard verifyParentPIN(pin) else { return false }
-        isStudentModeActive = false
-        activeStudentModeStudentID = nil
-        return true
-    }
-
-    @discardableResult
-    func setParentPIN(_ pin: String?) -> Bool {
-        update("update parent PIN") { state in
-            try state.setParentPIN(pin)
-        }
-    }
-
-    func verifyParentPIN(_ pin: String) -> Bool {
-        state.verifyParentPIN(pin)
-    }
-
-    var hasParentPIN: Bool {
-        state.parentPIN != nil
     }
 
     @discardableResult

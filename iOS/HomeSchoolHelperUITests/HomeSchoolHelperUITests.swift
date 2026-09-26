@@ -42,8 +42,8 @@ final class HomeSchoolHelperUITests: XCTestCase {
     }
 
     func testIndependentFlexibleProgressRecordsAndPersistence() throws {
-        addLearner(name: "Ada", grade: "4")
-        addLearner(name: "Ben", grade: "2")
+        addLearner(name: "Ada", grade: "4th Grade")
+        addLearner(name: "Ben", grade: "2nd Grade")
         buildSharedUndatedSequence()
 
         app.tabBars.buttons["Today"].tap()
@@ -114,32 +114,24 @@ final class HomeSchoolHelperUITests: XCTestCase {
         app.tabBars.buttons["Family"].tap()
         attachScreenshot(named: "large-text-dark-family")
         reveal(app.buttons["addStudent"])
-        addLearner(name: "Rae", grade: "5")
+        addLearner(name: "Rae", grade: "5th Grade")
         reveal(app.staticTexts["Rae"], direction: .down)
 
         app.tabBars.buttons["Settings"].tap()
         attachScreenshot(named: "large-text-dark-settings")
     }
 
-    func testSettingsPageAndLegalDocuments() throws {
+    func testSettingsPageAndLegalLinks() throws {
         XCTAssertTrue(app.tabBars.buttons["Settings"].waitForExistence(timeout: 2))
         app.tabBars.buttons["Settings"].tap()
 
         XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 2))
 
-        // Open Privacy Policy
-        tap("openPrivacyPolicy", in: app.buttons)
-        XCTAssertTrue(app.staticTexts["Privacy Policy"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["1. Local-First Data Sovereignty"].exists)
-        attachScreenshot(named: "privacy-policy-sheet")
-        tap("dismissLegalDocument", in: app.buttons)
-
-        // Open Terms of Service
-        tap("openTermsOfService", in: app.buttons)
-        XCTAssertTrue(app.staticTexts["Terms of Service"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["1. Acceptance of Terms"].exists)
-        attachScreenshot(named: "terms-of-service-sheet")
-        tap("dismissLegalDocument", in: app.buttons)
+        // Privacy and terms are canonical website links rather than duplicated native documents.
+        let privacyLink = app.descendants(matching: .any)["openPrivacyPolicy"]
+        reveal(privacyLink)
+        XCTAssertTrue(privacyLink.exists)
+        XCTAssertTrue(app.descendants(matching: .any)["openTermsOfService"].exists)
 
         attachScreenshot(named: "settings-page")
     }
@@ -200,7 +192,10 @@ final class HomeSchoolHelperUITests: XCTestCase {
         app.tabBars.buttons["Family"].tap()
         tap("addStudent", in: app.buttons)
         enter(name, into: app.textFields["studentName"])
-        enter(grade, into: app.textFields["studentGrade"])
+        tap("studentGrade", in: app.buttons)
+        let gradeOption = app.buttons[grade]
+        XCTAssertTrue(gradeOption.waitForExistence(timeout: 2), "Grade option \(grade) did not appear")
+        gradeOption.tap()
         tap("saveStudent", in: app.buttons)
         reveal(app.staticTexts[name], direction: .down)
     }

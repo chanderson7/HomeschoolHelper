@@ -28,7 +28,6 @@ let package = Package(
                 "LegalDocumentView.swift",
                 "SettingsView.swift",
                 "HomeschoolReports.swift",
-                "StudentModeView.swift",
                 "PortfolioView.swift",
                 "PortfolioStorage.swift",
                 "NotificationManager.swift",

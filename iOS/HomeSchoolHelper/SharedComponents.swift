@@ -1,6 +1,80 @@
 import SwiftUI
 import HomeschoolCore
 
+enum GradeLevelCatalog {
+    static let standard = [
+        "Preschool",
+        "Pre-K",
+        "Kindergarten",
+        "1st Grade",
+        "2nd Grade",
+        "3rd Grade",
+        "4th Grade",
+        "5th Grade",
+        "6th Grade",
+        "7th Grade",
+        "8th Grade",
+        "9th Grade",
+        "10th Grade",
+        "11th Grade",
+        "12th Grade"
+    ]
+
+    static func options(including currentSelection: String) -> [String] {
+        let current = currentSelection.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !current.isEmpty, !standard.contains(current) else { return standard }
+        return [current] + standard
+    }
+}
+
+struct GradeLevelMenu: View {
+    @Binding var selection: String
+    let accessibilityIdentifier: String
+    var usesFieldStyle = false
+    var onSelect: (() -> Void)?
+
+    var body: some View {
+        Menu {
+            ForEach(GradeLevelCatalog.options(including: selection), id: \.self) { grade in
+                Button {
+                    selection = grade
+                    onSelect?()
+                } label: {
+                    if selection == grade {
+                        Label(grade, systemImage: "checkmark")
+                    } else {
+                        Text(grade)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Text(selection.isEmpty ? "Select grade level" : selection)
+                    .foregroundStyle(selection.isEmpty ? Color.secondary : Color.primary)
+                if usesFieldStyle {
+                    Spacer(minLength: 8)
+                }
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: usesFieldStyle ? .infinity : nil, alignment: .leading)
+            .padding(usesFieldStyle ? 12 : 0)
+            .background {
+                if usesFieldStyle {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color(uiColor: .secondarySystemBackground))
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Grade Level")
+        .accessibilityValue(selection.isEmpty ? "Not selected" : selection)
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+}
+
 struct LoadFailureView: View {
     let message: String
     let retry: () -> Void

@@ -565,7 +565,6 @@ public struct SchoolState: Codable, Equatable, Sendable {
     public var academicYears: [AcademicYear]
     public var terms: [AcademicTerm]
     public var activeYearID: UUID?
-    public var parentPIN: String?
     public var selectedStateCode: String?
     public var portfolioItems: [PortfolioItem]
     public var books: [BookEntry]
@@ -583,7 +582,6 @@ public struct SchoolState: Codable, Equatable, Sendable {
         case academicYears
         case terms
         case activeYearID
-        case parentPIN
         case selectedStateCode
         case portfolioItems
         case books
@@ -602,7 +600,6 @@ public struct SchoolState: Codable, Equatable, Sendable {
         academicYears: [AcademicYear] = [],
         terms: [AcademicTerm] = [],
         activeYearID: UUID? = nil,
-        parentPIN: String? = nil,
         selectedStateCode: String? = nil,
         portfolioItems: [PortfolioItem] = [],
         books: [BookEntry] = [],
@@ -619,7 +616,6 @@ public struct SchoolState: Codable, Equatable, Sendable {
         self.academicYears = academicYears
         self.terms = terms
         self.activeYearID = activeYearID
-        self.parentPIN = parentPIN
         self.selectedStateCode = selectedStateCode
         self.portfolioItems = portfolioItems
         self.books = books
@@ -639,7 +635,6 @@ public struct SchoolState: Codable, Equatable, Sendable {
         self.academicYears = try container.decodeIfPresent([AcademicYear].self, forKey: .academicYears) ?? []
         self.terms = try container.decodeIfPresent([AcademicTerm].self, forKey: .terms) ?? []
         self.activeYearID = try container.decodeIfPresent(UUID.self, forKey: .activeYearID)
-        self.parentPIN = try container.decodeIfPresent(String.self, forKey: .parentPIN)
         self.selectedStateCode = try container.decodeIfPresent(String.self, forKey: .selectedStateCode)
         self.portfolioItems = try container.decodeIfPresent([PortfolioItem].self, forKey: .portfolioItems) ?? []
         self.books = try container.decodeIfPresent([BookEntry].self, forKey: .books) ?? []
@@ -659,7 +654,6 @@ public struct SchoolState: Codable, Equatable, Sendable {
         try container.encode(academicYears, forKey: .academicYears)
         try container.encode(terms, forKey: .terms)
         try container.encodeIfPresent(activeYearID, forKey: .activeYearID)
-        try container.encodeIfPresent(parentPIN, forKey: .parentPIN)
         try container.encodeIfPresent(selectedStateCode, forKey: .selectedStateCode)
         try container.encode(portfolioItems, forKey: .portfolioItems)
         try container.encode(books, forKey: .books)
@@ -669,12 +663,6 @@ public struct SchoolState: Codable, Equatable, Sendable {
 
     public func validate() throws {
         guard schemaVersion == 1 else { throw SchoolStateError.unsupportedSchema(schemaVersion) }
-
-        if let parentPIN {
-            guard parentPIN.count == 4 && parentPIN.allSatisfy(\.isNumber) else {
-                throw SchoolStateError.invalidValue("Parent PIN must be exactly 4 numeric digits.")
-            }
-        }
 
         try validateUniqueIDs(students.map(\.id), collection: "students")
         try validateUniqueIDs(courses.map(\.id), collection: "courses")
@@ -1446,24 +1434,6 @@ public struct SchoolState: Codable, Equatable, Sendable {
             guard assignment.status == .completed, let completedDay = assignment.completedDay else { return false }
             return (studentID == nil || assignment.studentID == studentID) && year.contains(day: completedDay)
         }
-    }
-
-    public mutating func setParentPIN(_ pin: String?) throws {
-        if let pin {
-            let trimmed = pin.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard trimmed.count == 4 && trimmed.allSatisfy(\.isNumber) else {
-                throw SchoolStateError.invalidValue("Parent PIN must be exactly 4 numeric digits.")
-            }
-            parentPIN = trimmed
-        } else {
-            parentPIN = nil
-        }
-        try validate()
-    }
-
-    public func verifyParentPIN(_ pin: String) -> Bool {
-        guard let parentPIN else { return true }
-        return parentPIN == pin.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     public mutating func setSelectedStateCode(_ code: String?) throws {

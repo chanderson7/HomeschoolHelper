@@ -59,8 +59,6 @@ struct HomeTabView: View {
         Group {
             if let message = store.loadError {
                 LoadFailureView(message: message, retry: store.load)
-            } else if store.isStudentModeActive {
-                StudentModeView()
             } else if store.state.students.isEmpty && !hasDismissedOnboarding {
                 OnboardingView(onExplore: {
                     withAnimation(.easeInOut(duration: 0.3)) {

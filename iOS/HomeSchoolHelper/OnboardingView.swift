@@ -2,8 +2,6 @@ import SwiftUI
 import HomeschoolCore
 
 struct OnboardingView: View {
-    @Environment(\.signedInIdentity) private var identity
-    @State private var showAccount = false
     @EnvironmentObject private var store: HomeschoolStore
     var onExplore: () -> Void
 
@@ -36,11 +34,6 @@ struct OnboardingView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    if let identity {
-                        Button("Account & backups") { showAccount = true }
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                            .sheet(isPresented: $showAccount) { AccountView(identity: identity) }
-                    }
                     // Header
                     VStack(spacing: 12) {
                         ZStack {
@@ -93,11 +86,12 @@ struct OnboardingView: View {
                                     Text("Grade Level")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(.secondary)
-                                    TextField("e.g. Grade 1, Kindergarten, 9th Grade", text: $gradeLevel)
-                                        .textFieldStyle(.plain)
-                                        .padding(12)
-                                        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
-                                        .accessibilityIdentifier("onboardingStudentGrade")
+                                    GradeLevelMenu(
+                                        selection: $gradeLevel,
+                                        accessibilityIdentifier: "onboardingStudentGrade",
+                                        usesFieldStyle: true,
+                                        onSelect: { isNameFocused = false }
+                                    )
                                 }
                             }
 
@@ -275,7 +269,7 @@ struct OnboardingView: View {
         }
 
         guard !trimmedGrade.isEmpty else {
-            validationError = "Please enter a grade level."
+            validationError = "Please select a grade level."
             return
         }
 
@@ -303,10 +297,8 @@ struct OnboardingView: View {
         validationError = nil
 
         // Add the student
-        var newStudentID: UUID?
         _ = store.update("complete setup") { state in
             let studentID = try state.addStudent(name: trimmedName, gradeLevel: trimmedGrade)
-            newStudentID = studentID
             
             // Seed 5 starter lessons
             let lessons = (1...5).map { "Lesson \($0)" }

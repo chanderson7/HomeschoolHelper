@@ -37,8 +37,8 @@ struct AccountView: View {
                     .accessibilityIdentifier("accountDeleteButton")
                 }
 
-                Section("Automatic Cloud Sync") {
-                    Toggle("Automatic Cloud Sync", isOn: $autoSyncEnabled)
+                Section("Automatic Cloud Backup") {
+                    Toggle("Automatic Cloud Backup", isOn: $autoSyncEnabled)
                         .onChange(of: autoSyncEnabled) { _, newValue in
                             cloudSync.setAutoSyncEnabled(newValue)
                         }
@@ -47,7 +47,7 @@ struct AccountView: View {
                     HStack {
                         Label {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Sync Status")
+                                Text("Backup Status")
                                     .font(.subheadline)
                                 Text(cloudSync.syncStatus.displayText)
                                     .font(.caption)
@@ -63,7 +63,7 @@ struct AccountView: View {
                         if cloudSync.syncStatus == .syncing {
                             ProgressView()
                         } else if autoSyncEnabled {
-                            Button("Sync Now") {
+                            Button("Back Up Now") {
                                 Task {
                                     await cloudSync.flushNow(state: store.state, userID: identity.id, client: auth.client)
                                     await loadBackups()
@@ -76,13 +76,13 @@ struct AccountView: View {
                     }
                     .accessibilityIdentifier("cloudSyncStatusRow")
 
-                    Text("When enabled, changes to your lessons, attendance, and grades are automatically backed up to your private cloud storage.")
+                    Text("When enabled, changes to your lessons, attendance, and grades are backed up automatically. Use Back Up Now when you want an immediate backup.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
 
-                Section("Cloud Backup Snapshots") {
-                    Text("Historical backup snapshots saved to your Supabase account. You can restore previous states or manually trigger a new snapshot.")
+                Section("Backup History") {
+                    Text("Previous private backups let you restore an earlier version of your records. You can also save a backup before making a major change.")
                         .font(.footnote).foregroundStyle(.secondary)
                     Button("Save Snapshot Now") { confirmUpload = true }
                         .disabled(busy || store.loadError != nil)
@@ -117,7 +117,7 @@ struct AccountView: View {
             .task { await loadBackups() }
             .confirmationDialog("Back up this account’s records?", isPresented: $confirmUpload, titleVisibility: .visible) {
                 Button("Upload private backup") { Task { await uploadBackup() } }
-            } message: { Text("Learners, lessons, attendance, and activities will be saved to your Supabase account.") }
+            } message: { Text("Learners, lessons, attendance, and activities will be saved securely to your private cloud backup.") }
             .confirmationDialog("Replace this account’s local records?", isPresented: Binding(
                 get: { pendingRestore != nil }, set: { if !$0 { pendingRestore = nil } }
             ), titleVisibility: .visible) {

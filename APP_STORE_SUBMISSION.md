@@ -1,6 +1,6 @@
 # EZHomeschool — App Store Submission Guide
 
-This document contains all verified metadata, store copy, in-app purchase configurations, reviewer instructions, and privacy nutrition label responses required for App Store Connect submission.
+This document records the behavior of the current iOS source and the metadata intended for App Store Connect. Production services, reviewer credentials, in-app purchases, support contact delivery, and the final signed archive still require verification before submission.
 
 ---
 
@@ -14,7 +14,7 @@ This document contains all verified metadata, store copy, in-app purchase config
 - **Age Rating**: 4+ (No violence, realistic gambling, profanity, or mature content)
 - **Bundle ID**: `com.andersonsites.ezhomeschool`
 - **SKU**: `HEZ-IOS-001`
-- **Copyright**: `© 2026 EZHomeschool. All rights reserved.`
+- **Copyright**: `© 2026 Anderson Sites LLC. All rights reserved.`
 - **Primary Language**: English (U.S.)
 
 ---
@@ -41,7 +41,7 @@ This document contains all verified metadata, store copy, in-app purchase config
 ### App Store Description
 
 ```markdown
-EZHomeschool is the all-in-one homeschool management app built for homeschooling parents, cooperative educators, and modern families. Designed with a local-first architecture, EZHomeschool keeps your family's records private, responsive, and completely under your control — online or offline.
+EZHomeschool is a homeschool management app built for parents, cooperative educators, and families. A parent or guardian account is required. After sign-in, each account's records are saved locally on the device for responsive day-to-day use and backed up to private cloud storage when automatic sync is enabled.
 
 Whether you're managing multiple children across different grade levels, tracking state compliance hours, or building personalized lesson sequences, EZHomeschool simplifies your day so you can focus on teaching.
 
@@ -51,7 +51,7 @@ CORE HIGHLIGHTS:
 • Visual daily progress ring showing lesson completion at a glance
 • Quick-switch between all learners or focus on an individual child
 • Undated flexible sequence — reschedule missed lessons or leap ahead without guilt or calendar clutter
-• Quick-launch Student Mode for focused, distraction-free independent learner work
+• Fast grade selection from Preschool through 12th Grade when creating learner profiles
 
 ◆ CURRICULUM & SUBJECT ROADMAPS
 • Build structured sequences for Math, Science, Language Arts, History, and Electives
@@ -79,21 +79,23 @@ CORE HIGHLIGHTS:
 ◆ STUDENT WORK PORTFOLIO
 • Snap photos of worksheets, artwork, science experiments, and certificates
 • Tag samples by student and subject
-• Preserve your student's growth portfolio year over year
+• Keep student work organized in a device-local portfolio
 
-◆ DATA SOVEREIGNTY & OPTIONAL CLOUD SYNC
-• 100% functional offline without an account — your data lives securely on your device
-• Optional encrypted Supabase cloud backup keeps records synced across all your family devices
+◆ ACCOUNT DATA & CLOUD BACKUPS
+• A parent or guardian account is required to access the app
+• Structured homeschool records are saved in an account-specific file on the device
+• Automatic private cloud snapshots are enabled by default and can be paused in Account & Backups
+• Cloud restore includes structured records; portfolio image files remain on the device where they were added
 • No third-party ad networks, no tracking, and no data selling — ever.
 
-EZHomeschool is crafted with care to make your homeschool journey joyful, organized, and legally compliant.
+EZHomeschool is crafted to make homeschool planning and recordkeeping calmer and more organized. Families remain responsible for reviewing their records and applicable homeschool requirements.
 ```
 
 ---
 
 ## 2. In-App Purchases (StoreKit 2)
 
-Configure the following auto-renewable subscription group in App Store Connect:
+Configure and verify the following auto-renewable subscription group in App Store Connect. The current source gates creation of a second or later learner and sharing/saving an Academic Report Card export. Cloud sync, portfolio photos, course creation, ISBN scanning, and transcript exports are not currently gated by Pro and must not be advertised as paid benefits unless the app is changed first.
 
 ### Subscription Group: `EZHomeschool Pro`
 - **Group Reference Name**: `EZHomeschool Pro Subscriptions`
@@ -103,9 +105,9 @@ Configure the following auto-renewable subscription group in App Store Connect:
 - **Product ID**: `com.andersonsites.ezhomeschool.pro.annual`
 - **Duration**: 1 Year
 - **Price**: $39.99 USD
-- **Introductory Offer**: 7-Day Free Trial
+- **Introductory Offer**: 7-Day Free Trial *(planned; verify in App Store Connect)*
 - **Subscription Display Name**: `Annual Pro Membership`
-- **Subscription Description**: `Full unlimited access to multi-child profiles, official report cards, unlimited portfolio photos, and automatic cloud backup.`
+- **Subscription Description**: `Add multiple learner profiles and unlock sharing or saving Academic Report Card exports.`
 
 #### Tier 2: Monthly Membership
 - **Reference Name**: `EZHomeschool Pro Monthly`
@@ -113,7 +115,7 @@ Configure the following auto-renewable subscription group in App Store Connect:
 - **Duration**: 1 Month
 - **Price**: $4.99 USD
 - **Subscription Display Name**: `Monthly Pro Membership`
-- **Subscription Description**: `Full access to multi-child profiles, official report cards, unlimited portfolio photos, and automatic cloud backup billed monthly.`
+- **Subscription Description**: `Add multiple learner profiles and unlock sharing or saving Academic Report Card exports with monthly billing.`
 
 ---
 
@@ -122,33 +124,39 @@ Configure the following auto-renewable subscription group in App Store Connect:
 Provide this in the **App Review Information** section of App Store Connect:
 
 ```text
-SIGN-IN & AUTHENTICATION:
-EZHomeschool operates on a privacy-first, local-first architecture. A user account is completely OPTIONAL. The reviewer may explore the entire application without logging in.
+ACCOUNT REQUIRED:
+EZHomeschool requires a parent or guardian account. The application opens to its sign-in and account-creation screen when there is no verified session. A network connection is required to create an account, sign in, reset a password, and verify a saved session.
 
 QUICK START / SAMPLE DATA:
-To immediately review the app with a populated household (2 students, 3 courses with 18 lessons, attendance records, grades, reading logs, and portfolio items):
-1. Option A (First Launch): On the initial welcome screen, tap the prominent button: "Load Sample Household (Quick Demo)".
-2. Option B (Anytime): In Settings -> Data & Storage, tap "Load Sample Household Data".
+After signing in, the reviewer can populate a household with sample data (2 students, 3 courses with 18 lessons, attendance records, grades, reading logs, and portfolio metadata):
+1. Option A (First signed-in launch): On the welcome screen, tap "Load Sample Household (Quick Demo)".
+2. Option B (Anytime while signed in): In Settings -> Data & Storage, tap "Load Sample Household Data".
 The app will immediately load our curated sample household (Emma & Lucas).
 
-OPTIONAL CLOUD SYNC DEMO ACCOUNT:
-If you wish to test Supabase cloud authentication and cross-device sync:
+APP REVIEW ACCOUNT:
+Verify this account and its credentials against the production Supabase project immediately before submission:
 - Email: demo@homeschoolhelper.app
 - Password: HomeschoolHelper2026!
 
+CLOUD BACKUP BEHAVIOR:
+- Automatic cloud snapshots of structured homeschool records are enabled by default for signed-in accounts and can be paused in Settings -> Manage Backups & Restore.
+- Restore replaces the current local structured record snapshot; it does not merge records.
+- Portfolio image files are stored locally and are not included in cloud backup or restore. Only their structured metadata and local filenames are present in the snapshot.
+
 HARDWARE & PERMISSIONS JUSTIFICATION:
-- Camera (NSCameraUsageDescription): Used exclusively on-device via Apple's VisionKit to scan book ISBN barcodes in the Reading Log (Add Book -> Barcode icon) and to take photos of student physical work for the Portfolio. No video or biometric data is collected or transmitted.
-- Photo Library (NSPhotoLibraryUsageDescription): Allows users to pick photos of student work/art to add to their student portfolio.
+- Camera (NSCameraUsageDescription): Used via Apple's VisionKit to scan book ISBN barcodes and to capture student work for the Portfolio. The scanned ISBN can be sent to Open Library to retrieve book metadata. Portfolio images remain in the app's local storage.
+- Photo Library (NSPhotoLibraryUsageDescription): Allows users to select student work images for the device-local portfolio. Portfolio image files are not uploaded by the current cloud-backup implementation.
 
 IN-APP PURCHASES:
-StoreKit 2 auto-renewable subscriptions can be tested via standard Sandbox accounts. In addition, the app responds to the environment flag HSH_PRO_OVERRIDE=1 during automated UI testing. Active subscribers can manage their subscription natively via StoreKit's manageSubscriptionsSheet in Settings or the Paywall.
+StoreKit 2 auto-renewable subscriptions must be tested with Sandbox accounts after the production products and annual introductory offer are configured in App Store Connect. Active subscribers can manage their subscription through StoreKit's native subscription-management sheet in Settings or the paywall.
 
 ACCOUNT DELETION & DATA ERASURE (Guideline 5.1.1(v)):
 - In-App Deletion: When signed in, navigate to Settings -> Manage Backups & Restore -> "Delete Account".
 - Two user-choice deletion modes are provided:
-  1. "Delete Cloud Account & Keep Device Data": Permanently removes the remote account and deletes all cloud backup records from our database while preserving the parent's records locally on the device as an offline household.
-  2. "Delete Cloud Account & Erase All Device Data": Permanently removes the remote account, cloud backup records, and completely resets all device storage back to a blank state.
-- Local-Only Device Reset: For offline users, Settings -> Data & Storage -> "Erase All Device Data" allows completely wiping local device data.
+  1. "Delete Cloud Account & Keep Device Data": Requests permanent deletion of the remote account and cloud backups, preserves the account-specific local data file, and signs the user out. The current build does not provide offline access to that retained file after account deletion.
+  2. "Delete Cloud Account & Erase All Device Data": Requests permanent deletion of the remote account and cloud backups, erases the current account's local records, and signs the user out.
+- While signed in, Settings -> Data & Storage -> "Erase All Device Data" clears the current local household records without deleting the account.
+- The deletion RPC migration and both result paths must be verified against the production Supabase project before submission.
 ```
 
 ---
@@ -167,9 +175,9 @@ In compliance with Apple's Spring 2024 Privacy Manifest mandate:
   - `NSPrivacyAccessedAPICategoryUserDefaults` with reason `CA92.1` (reading and writing user preferences and local flags).
   - `NSPrivacyAccessedAPICategoryFileTimestamp` with reason `C617.1` (accessing timestamps within the app's sandboxed container).
 - **Data Types Declared**:
-  - `NSPrivacyCollectedDataTypeEmailAddress` (App Functionality, linked to user when signed in).
-  - `NSPrivacyCollectedDataTypeUserID` (App Functionality, linked to user when signed in).
-  - `NSPrivacyCollectedDataTypeOtherUserContent` (App Functionality, linked to user when signed in).
+  - `NSPrivacyCollectedDataTypeEmailAddress` (App Functionality, linked to the required account).
+  - `NSPrivacyCollectedDataTypeUserID` (App Functionality, linked to the required account).
+  - `NSPrivacyCollectedDataTypeOtherUserContent` (App Functionality, linked to the account when structured records are backed up).
 
 ---
 
@@ -178,7 +186,7 @@ In compliance with Apple's Spring 2024 Privacy Manifest mandate:
 Answer the App Store Connect Privacy Questionnaire as follows:
 
 ### "Do you or your third-party partners collect data from this app?"
-**YES** (If the user voluntarily signs in for Cloud Sync; otherwise local only).
+**YES**. An account is required, and automatic cloud backup of structured homeschool records is enabled by default. Users can pause automatic sync. Portfolio image files remain local in the current implementation.
 
 ### "Do you track users?"
 > **NO**. EZHomeschool does not track users across apps and websites owned by other companies, does not integrate advertising SDKs, and does not sell or share data with data brokers.
@@ -189,10 +197,10 @@ Answer the App Store Connect Privacy Questionnaire as follows:
 
 | Data Type | Collected? | Linked to User? | Used for Tracking? | Purpose |
 | :--- | :--- | :--- | :--- | :--- |
-| **Contact Info: Email Address** | Yes (Optional) | Yes (If signed in) | **No** | **App Functionality**: User account authentication & optional cloud backup retrieval. |
-| **Identifiers: User ID** | Yes (Optional) | Yes (If signed in) | **No** | **App Functionality**: Scopes cloud database records to the authenticated parent account. |
-| **User Content: Other User Content** | Yes (Optional) | Yes (If signed in) | **No** | **App Functionality**: Homeschool records, courses, attendance, and reading logs backed up to private cloud database. |
-| **Purchases: Purchase History** | Yes | No | **No** | **App Functionality**: StoreKit 2 receipt and entitlement verification. |
+| **Contact Info: Email Address** | **Yes** | **Yes** | **No** | **App Functionality**: Required account authentication, password recovery, and cloud-backup access. |
+| **Identifiers: User ID** | **Yes** | **Yes** | **No** | **App Functionality**: Scopes local account files and private cloud records to the authenticated parent account. |
+| **User Content: Other User Content** | **Yes** | **Yes** | **No** | **App Functionality**: Structured homeschool records, including learner, course, attendance, grade, reading-log, and portfolio metadata, are backed up automatically by default. Portfolio image files are not uploaded. |
+| **Purchases: Purchase History** | **No developer collection in current source** | N/A | **No** | StoreKit evaluates verified entitlements on device; the app does not send purchase history to a developer-controlled server. Confirm the final App Store privacy answer against Apple's current questionnaire. |
 | **Diagnostics / Crash Data** | **No** | N/A | **No** | None collected. |
 | **Location Data** | **No** | N/A | **No** | None collected. |
 | **Financial Info** | **No** | N/A | **No** | Handled entirely by Apple Pay / In-App Purchase. |
@@ -201,15 +209,16 @@ Answer the App Store Connect Privacy Questionnaire as follows:
 
 ## 7. Build & Archive Instructions
 
-To generate the release archive locally or in CI:
+For the uploadable release archive, use Xcode with the Anderson Sites LLC account and automatic signing:
 
 ```bash
 # 1. Run core unit tests
 bash scripts/test-core.sh
-
-# 2. Build Release .xcarchive
-bash scripts/archive-ios.sh
-
-# 3. Open in Xcode Organizer to validate and submit
-open .build/archives/HomeSchoolHelper.xcarchive
 ```
+
+1. In Xcode, select the `HomeSchoolHelper` scheme and `Any iOS Device (arm64)`.
+2. Choose **Product -> Archive**.
+3. In **Window -> Organizer -> Archives**, select the new signed archive.
+4. Generate and review the privacy report, then choose **Distribute App -> App Store Connect -> Upload**.
+
+`scripts/archive-ios.sh` defaults to `CODE_SIGNING_ALLOWED=NO` and is suitable for build verification. Its default archive is not an uploadable App Store build.

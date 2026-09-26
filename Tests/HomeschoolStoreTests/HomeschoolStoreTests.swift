@@ -333,7 +333,7 @@ final class HomeschoolStoreTests: XCTestCase {
         }
     }
 
-    func testPacedRescheduleStudentModeAndGradingInStore() async {
+    func testPacedRescheduleAndGradingInStore() async {
         await MainActor.run {
             let repository = InMemorySchoolRepository(state: SchoolState())
             let store = HomeschoolStore(repository: repository)
@@ -354,25 +354,6 @@ final class HomeschoolStoreTests: XCTestCase {
             let result = store.rescheduleOverduePaced(from: "2026-09-25", studentID: student.id)
             XCTAssertNotNil(result)
             XCTAssertEqual(result?.rescheduledCount, 3)
-
-            // PIN & Student Mode
-            XCTAssertFalse(store.hasParentPIN)
-            XCTAssertTrue(store.setParentPIN("4321"))
-            XCTAssertTrue(store.hasParentPIN)
-            XCTAssertTrue(store.verifyParentPIN("4321"))
-            XCTAssertFalse(store.verifyParentPIN("0000"))
-
-            store.enterStudentMode(for: student.id)
-            XCTAssertTrue(store.isStudentModeActive)
-            XCTAssertEqual(store.activeStudentModeStudentID, student.id)
-
-            // Exit with wrong PIN fails
-            XCTAssertFalse(store.exitStudentMode(pin: "9999"))
-            XCTAssertTrue(store.isStudentModeActive)
-
-            // Exit with correct PIN succeeds
-            XCTAssertTrue(store.exitStudentMode(pin: "4321"))
-            XCTAssertFalse(store.isStudentModeActive)
 
             // State Compliance
             XCTAssertTrue(store.setSelectedStateCode("CA"))

@@ -780,28 +780,6 @@ final class SchoolStateTests: XCTestCase {
         XCTAssertEqual(updatedChem0.gradePoint, 3.0)
     }
 
-    func testParentPINVerificationAndValidation() throws {
-        var state = SchoolState()
-        // Default: no PIN set, verify returns true
-        XCTAssertTrue(state.verifyParentPIN("1234"))
-
-        try state.setParentPIN("9876")
-        XCTAssertEqual(state.parentPIN, "9876")
-        XCTAssertTrue(state.verifyParentPIN("9876"))
-        XCTAssertFalse(state.verifyParentPIN("1234"))
-        XCTAssertFalse(state.verifyParentPIN(""))
-
-        // Invalid PINs
-        XCTAssertThrowsError(try state.setParentPIN("123"))
-        XCTAssertThrowsError(try state.setParentPIN("12345"))
-        XCTAssertThrowsError(try state.setParentPIN("abcd"))
-
-        // Clear PIN
-        try state.setParentPIN(nil)
-        XCTAssertNil(state.parentPIN)
-        XCTAssertTrue(state.verifyParentPIN("any"))
-    }
-
     func testBackwardCompatibilityWithAllNewFields() throws {
         let legacyJSON = """
         {
@@ -831,7 +809,6 @@ final class SchoolStateTests: XCTestCase {
         XCTAssertNil(state.courses[0].weight)
         XCTAssertNil(state.assignments[0].grade)
         XCTAssertNil(state.assignments[0].notes)
-        XCTAssertNil(state.parentPIN)
         XCTAssertNil(state.selectedStateCode)
         XCTAssertEqual(state.portfolioItems, [])
         XCTAssertNoThrow(try state.validate())
@@ -1322,4 +1299,3 @@ final class SchoolStateTests: XCTestCase {
         XCTAssertNoThrow(try decoded.validate())
     }
 }
-

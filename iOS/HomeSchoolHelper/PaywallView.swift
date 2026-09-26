@@ -6,7 +6,6 @@ public struct PaywallView: View {
     @ObservedObject private var subscriptionManager = SubscriptionManager.shared
     
     @State private var selectedProductID: String = SubscriptionManager.annualProductID
-    @State private var activeLegalDoc: LegalDocumentType?
     @State private var alertMessage: String?
     @State private var showAlert: Bool = false
     @State private var showManageSubscriptions: Bool = false
@@ -74,13 +73,6 @@ public struct PaywallView: View {
                             color: .purple,
                             title: "Unlimited Portfolio Photos",
                             subtitle: "Capture science projects, art, and assignments with high-res storage."
-                        )
-
-                        proFeatureRow(
-                            icon: "icloud.and.arrow.up.fill",
-                            color: .indigo,
-                            title: "Automatic Cloud Sync",
-                            subtitle: "Seamless multi-device sync with instant background backups."
                         )
 
                         proFeatureRow(
@@ -242,19 +234,17 @@ public struct PaywallView: View {
                             .padding(.horizontal, 24)
 
                         HStack(spacing: 16) {
-                            Button("Terms of Use (EULA)") {
-                                activeLegalDoc = .termsOfService
-                            }
+                            Link("Terms of Use", destination: LegalLinks.termsOfService)
                             .font(.caption.weight(.medium))
+                            .accessibilityIdentifier("paywallTermsLink")
 
                             Text("•")
                                 .font(.caption)
                                 .foregroundStyle(.tertiary)
 
-                            Button("Privacy Policy") {
-                                activeLegalDoc = .privacyPolicy
-                            }
+                            Link("Privacy Policy", destination: LegalLinks.privacyPolicy)
                             .font(.caption.weight(.medium))
+                            .accessibilityIdentifier("paywallPrivacyLink")
                         }
                         .foregroundStyle(Sage.accent)
                     }
@@ -276,9 +266,6 @@ public struct PaywallView: View {
                     .accessibilityLabel("Close Paywall")
                     .accessibilityIdentifier("closePaywall")
                 }
-            }
-            .sheet(item: $activeLegalDoc) { doc in
-                LegalDocumentView(documentType: doc)
             }
             .manageSubscriptionsSheet(isPresented: $showManageSubscriptions)
             .alert("Subscription", isPresented: $showAlert) {

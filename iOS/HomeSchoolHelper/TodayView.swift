@@ -81,21 +81,6 @@ struct TodayView: View {
             .background(Sage.background.ignoresSafeArea())
             .navigationTitle("Today")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    if !store.state.students.isEmpty {
-                        Button {
-                            store.enterStudentMode(for: studentID)
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "person.crop.circle.badge.checkmark")
-                                Text("Student Mode")
-                                    .font(.subheadline.weight(.semibold))
-                            }
-                            .foregroundStyle(Sage.accent)
-                        }
-                        .accessibilityIdentifier("todayEnterStudentModeButton")
-                    }
-                }
                 SaveStatusToolbar()
             }
             .sheet(isPresented: $showNewStudent) { AddStudentView() }
@@ -948,4 +933,3 @@ struct AssignmentStatusSheet: View {
         }
     }
 }
-
