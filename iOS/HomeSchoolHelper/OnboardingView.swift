@@ -53,7 +53,7 @@ struct OnboardingView: View {
                         }
                         .padding(.top, 16)
 
-                        Text(currentStep == .child ? "Welcome to\nHomeSchoolHelper" : "What is \(name.isEmpty ? "your learner" : name)\nlearning first?")
+                        Text(currentStep == .child ? "Welcome to\nHomeschool Compass" : "What is \(name.isEmpty ? "your learner" : name)\nlearning first?")
                             .font(.system(size: 28, weight: .bold, design: .rounded))
                             .multilineTextAlignment(.center)
                             .lineSpacing(2)

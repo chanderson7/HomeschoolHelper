@@ -1,4 +1,4 @@
-# HomeSchoolHelper
+# Homeschool Compass
 
 First native milestone · September 20, 2026
 

@@ -6,7 +6,7 @@
     <array>
         <dict>
             <key>CFBundleURLName</key>
-            <string>com.andersonsites.homeschoolhelper.auth</string>
+            <string>com.andersonsites.homeschoolcompass.auth</string>
             <key>CFBundleURLSchemes</key>
             <array>
                 <string>homeschoolhelper</string>
@@ -14,9 +14,9 @@
         </dict>
     </array>
     <key>NSCameraUsageDescription</key>
-    <string>HomeSchool Helper uses your camera to scan book ISBN barcodes for reading logs and capture work samples for student portfolios.</string>
+    <string>Homeschool Compass uses your camera to scan book ISBN barcodes for reading logs and capture work samples for student portfolios.</string>
     <key>NSPhotoLibraryUsageDescription</key>
-    <string>HomeSchool Helper accesses your photo library to let you select photos of learner assignments, art, and projects for their portfolio.</string>
+    <string>Homeschool Compass accesses your photo library to let you select photos of learner assignments, art, and projects for their portfolio.</string>
     <key>ITSAppUsesNonExemptEncryption</key>
     <false/>
 </dict>

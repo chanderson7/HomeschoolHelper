@@ -2333,7 +2333,7 @@ public enum HomeschoolCalendarGenerator {
         var lines: [String] = [
             "BEGIN:VCALENDAR",
             "VERSION:2.0",
-            "PRODID:-//Homeschool Helper//Homeschool Calendar 1.0//EN",
+            "PRODID:-//Homeschool Compass//Homeschool Calendar 1.0//EN",
             "CALSCALE:GREGORIAN",
             "METHOD:PUBLISH"
         ]
@@ -2421,4 +2421,3 @@ public enum HomeschoolCalendarGenerator {
             .replacingOccurrences(of: "\r", with: "")
     }
 }
-

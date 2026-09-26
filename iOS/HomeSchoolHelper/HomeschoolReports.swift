@@ -133,7 +133,7 @@ public enum HomeschoolCSVGenerator {
         var lines: [String] = []
 
         // Header Comments / Metadata
-        lines.append(formatRow(["HOMESCHOOL HELPER - OFFICIAL ATTENDANCE & HOURS LOG"]))
+        lines.append(formatRow(["HOMESCHOOL COMPASS - OFFICIAL ATTENDANCE & HOURS LOG"]))
         lines.append(formatRow(["Academic Year", year.title, "Dates", "\(year.startDay) to \(year.endDay)"]))
         if let student {
             lines.append(formatRow(["Student", student.name, "Grade", student.gradeLevel]))
@@ -186,7 +186,7 @@ public enum HomeschoolCSVGenerator {
     ) -> String {
         var lines: [String] = []
 
-        lines.append(formatRow(["HOMESCHOOL HELPER - CURRICULUM PROGRESS REPORT"]))
+        lines.append(formatRow(["HOMESCHOOL COMPASS - CURRICULUM PROGRESS REPORT"]))
         lines.append(formatRow(["Academic Year", year.title]))
         if let student {
             lines.append(formatRow(["Student", student.name, "Grade", student.gradeLevel]))
@@ -235,7 +235,7 @@ public enum HomeschoolCSVGenerator {
     ) -> String {
         var lines: [String] = []
 
-        lines.append(formatRow(["HOMESCHOOL HELPER - COMPREHENSIVE ANNUAL CHRONICLE"]))
+        lines.append(formatRow(["HOMESCHOOL COMPASS - COMPREHENSIVE ANNUAL CHRONICLE"]))
         lines.append(formatRow(["Academic Year", year.title, "Range", "\(year.startDay) to \(year.endDay)"]))
         if let student {
             lines.append(formatRow(["Student", student.name, "Grade", student.gradeLevel]))
@@ -296,7 +296,7 @@ public enum HomeschoolCSVGenerator {
     ) -> String {
         var lines: [String] = []
 
-        lines.append(formatRow(["HOMESCHOOL HELPER - OFFICIAL HIGH SCHOOL ACADEMIC TRANSCRIPT"]))
+        lines.append(formatRow(["HOMESCHOOL COMPASS - OFFICIAL HIGH SCHOOL ACADEMIC TRANSCRIPT"]))
         lines.append(formatRow(["Academic Year", year.title]))
         if let student {
             lines.append(formatRow(["Student", student.name, "Grade", student.gradeLevel]))
@@ -366,7 +366,7 @@ public enum HomeschoolCSVGenerator {
     ) -> String {
         var lines: [String] = []
 
-        lines.append(formatRow(["HOMESCHOOL HELPER - OFFICIAL READING LOG & BOOK LIST"]))
+        lines.append(formatRow(["HOMESCHOOL COMPASS - OFFICIAL READING LOG & BOOK LIST"]))
         lines.append(formatRow(["Academic Year", year.title]))
         if let student {
             lines.append(formatRow(["Student", student.name, "Grade", student.gradeLevel]))
@@ -436,7 +436,7 @@ public enum HomeschoolCSVGenerator {
     ) -> String {
         var lines: [String] = []
 
-        lines.append(formatRow(["HOMESCHOOL HELPER - OFFICIAL ACADEMIC REPORT CARD"]))
+        lines.append(formatRow(["HOMESCHOOL COMPASS - OFFICIAL ACADEMIC REPORT CARD"]))
         lines.append(formatRow(["Academic Year", year.title]))
         if let student {
             lines.append(formatRow(["Student", student.name, "Grade Level", student.gradeLevel]))
@@ -534,8 +534,8 @@ public enum HomeschoolPDFGenerator {
         year: AcademicYear
     ) -> Data {
         let pdfMetaData = [
-            kCGPDFContextCreator: "Homeschool Helper",
-            kCGPDFContextAuthor: "Homeschool Helper Official Records",
+            kCGPDFContextCreator: "Homeschool Compass",
+            kCGPDFContextAuthor: "Homeschool Compass Official Records",
             kCGPDFContextTitle: "\(type.rawValue) - \(year.title)"
         ]
         let format = UIGraphicsPDFRendererFormat()
@@ -551,7 +551,7 @@ public enum HomeschoolPDFGenerator {
             func drawRunningHeader() {
                 let headerFont = UIFont.systemFont(ofSize: 8, weight: .bold)
                 let subFont = UIFont.systemFont(ofSize: 8, weight: .regular)
-                let headerText = "HOMESCHOOL HELPER — OFFICIAL ACADEMIC RECORD"
+                let headerText = "HOMESCHOOL COMPASS — OFFICIAL ACADEMIC RECORD"
                 let dateText = "Generated: \(Date().formatted(.dateTime.year().month().day()))"
 
                 let attributes: [NSAttributedString.Key: Any] = [

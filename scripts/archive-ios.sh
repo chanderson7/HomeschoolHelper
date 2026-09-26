@@ -36,7 +36,7 @@ if [ ! -d "$APP_DIR" ]; then
     exit 1
 fi
 
-BUNDLE_ID=$(defaults read "$APP_DIR/Info.plist" CFBundleIdentifier 2>/dev/null || echo "com.andersonsites.homeschoolhelper")
+BUNDLE_ID=$(defaults read "$APP_DIR/Info.plist" CFBundleIdentifier 2>/dev/null || echo "com.andersonsites.homeschoolcompass")
 VERSION=$(defaults read "$APP_DIR/Info.plist" CFBundleShortVersionString 2>/dev/null || echo "0.1.0")
 BUILD=$(defaults read "$APP_DIR/Info.plist" CFBundleVersion 2>/dev/null || echo "1")
 

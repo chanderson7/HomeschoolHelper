@@ -29,7 +29,7 @@ struct LoginView: View {
                     Image(systemName: "leaf.circle.fill")
                         .font(.system(size: 54)).foregroundStyle(Sage.accent).accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("HomeSchoolHelper").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+                        Text("Homeschool Compass").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
                         Text(title).font(.largeTitle.bold())
                         Text(recoveringPassword ? "Set a password with at least 8 characters." : "A little structure. More room to learn together.")
                             .foregroundStyle(.secondary)
