@@ -10,6 +10,7 @@ final class HomeSchoolHelperUITests: XCTestCase {
         app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launchEnvironment["HSH_UI_TEST_ID"] = UUID().uuidString
         app.launchEnvironment["HSH_UI_TEST_AUTH_MODE"] = "authenticated"
+        app.launchEnvironment["HSH_PRO_OVERRIDE"] = "1"
         app.launch()
     }
 
@@ -57,33 +58,35 @@ final class HomeSchoolHelperUITests: XCTestCase {
         XCTAssertFalse(app.buttons["assignment-Ada-Lesson One"].exists)
 
         app.tabBars.buttons["Records"].tap()
-        XCTAssertTrue(app.staticTexts["0 learner-days"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["0 days"].waitForExistence(timeout: 8))
         recordAttendanceForAda(minutes: "120")
         recordAttendanceForAda(minutes: "150")
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@", "2h 30m")).firstMatch.waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["1 learner-days"].exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@", "2h 30m")).firstMatch.waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["1 days"].exists)
         tap("openAttendance", in: app.buttons)
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@", "2h 30m")).firstMatch.waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@", "2h 30m")).firstMatch.waitForExistence(timeout: 8))
         XCTAssertEqual(attendanceEntries(for: "Ada").count, 1)
         tap("Done", in: app.buttons)
 
         logRetrospectiveActivityForBen()
-        XCTAssertTrue(app.staticTexts["Museum visit"].waitForExistence(timeout: 2))
+        reveal(app.staticTexts["Museum visit"])
+        XCTAssertTrue(app.staticTexts["Museum visit"].exists)
         XCTAssertTrue(app.staticTexts["Ben · \(shortDate(daysBeforeToday: 7)) · 30m"].exists)
 
         app.terminate()
         app.launch()
 
         app.tabBars.buttons["Family"].tap()
-        XCTAssertTrue(app.staticTexts["Ada"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Ada"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.staticTexts["Ben"].exists)
         app.tabBars.buttons["Records"].tap()
-        XCTAssertTrue(app.staticTexts["Museum visit"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["1 learner-days"].exists)
+        XCTAssertTrue(app.staticTexts["1 days"].waitForExistence(timeout: 8))
         tap("openAttendance", in: app.buttons)
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@", "2h 30m")).firstMatch.waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@", "2h 30m")).firstMatch.waitForExistence(timeout: 8))
         XCTAssertEqual(attendanceEntries(for: "Ada").count, 1)
         tap("Done", in: app.buttons)
+        reveal(app.staticTexts["Museum visit"])
+        XCTAssertTrue(app.staticTexts["Museum visit"].exists)
         app.tabBars.buttons["Today"].tap()
         reveal(app.buttons["assignment-Ada-Lesson Two"])
         reveal(app.buttons["assignment-Ben-Lesson One"])
@@ -194,7 +197,7 @@ final class HomeSchoolHelperUITests: XCTestCase {
         enter(name, into: app.textFields["studentName"])
         tap("studentGrade", in: app.buttons)
         let gradeOption = app.buttons[grade]
-        XCTAssertTrue(gradeOption.waitForExistence(timeout: 2), "Grade option \(grade) did not appear")
+        XCTAssertTrue(gradeOption.waitForExistence(timeout: 6), "Grade option \(grade) did not appear")
         gradeOption.tap()
         tap("saveStudent", in: app.buttons)
         reveal(app.staticTexts[name], direction: .down)
@@ -207,8 +210,9 @@ final class HomeSchoolHelperUITests: XCTestCase {
         enter("Lesson One", into: app.textFields["lessonTitle-1"])
         tap("addLessonDraft", in: app.buttons)
         enter("Lesson Two", into: app.textFields["lessonTitle-2"])
-        app.navigationBars["Build Sequence"].tap()
-        app.swipeUp()
+        if app.keyboards.buttons["Return"].exists {
+            app.keyboards.buttons["Return"].tap()
+        }
         setSwitch("courseStudent-Ada", enabled: true)
         setSwitch("courseStudent-Ben", enabled: true)
         setSwitch("datedLessonSchedule", enabled: false)

@@ -11,6 +11,8 @@ struct TodayView: View {
     @State private var showNewStudent = false
     @State private var showNewCourse = false
     @State private var showPacedReschedule = false
+    @State private var animateArt = false
+    @State private var sunGlowPulse = false
 
     private var displayed: [Assignment] {
         store.state.assignments
@@ -61,10 +63,58 @@ struct TodayView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    Text(SchoolDate.long(selectedDay)).font(.caption).foregroundStyle(.secondary)
-                    Text("A little learning.\nA lovely day.")
-                        .font(.largeTitle.bold())
-                        .accessibilityAddTraits(.isHeader)
+                    // Botanical Morning Header
+                    ZStack(alignment: .topTrailing) {
+                        // Ambient sun glow
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [
+                                        Color.orange.opacity(sunGlowPulse ? 0.22 : 0.08),
+                                        Color.yellow.opacity(sunGlowPulse ? 0.12 : 0.03),
+                                        Color.clear
+                                    ],
+                                    center: .center,
+                                    startRadius: 6,
+                                    endRadius: 70
+                                )
+                            )
+                            .frame(width: 130, height: 130)
+                            .offset(x: 20, y: -25)
+                            .scaleEffect(sunGlowPulse ? 1.08 : 0.94)
+                            .animation(isRunningUITests ? nil : .easeInOut(duration: 3.2).repeatForever(autoreverses: true), value: sunGlowPulse)
+                            .accessibilityHidden(true)
+
+                        // Watercolor eucalyptus & morning sun art
+                        Image("TodayHeroArt")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(height: 85)
+                            .offset(x: 10, y: -10)
+                            .scaleEffect(animateArt ? 1.0 : 0.92)
+                            .opacity(animateArt ? 1.0 : 0.0)
+                            .accessibilityHidden(true)
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "sun.max.fill")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(Color.orange.opacity(0.85))
+                                Text(SchoolDate.long(selectedDay))
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Text("A little learning.\nA lovely day.")
+                                .font(.system(.largeTitle, design: .serif, weight: .bold))
+                                .foregroundStyle(.primary)
+                                .accessibilityAddTraits(.isHeader)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.trailing, 95)
+                    }
+                    .padding(.top, 4)
+
                     DayPicker(day: $selectedDay)
                     StudentScopePicker(students: store.state.students, selection: $studentID)
 
@@ -86,6 +136,16 @@ struct TodayView: View {
             .sheet(isPresented: $showNewStudent) { AddStudentView() }
             .sheet(isPresented: $showNewCourse) { SequenceBuilderView() }
             .sheet(isPresented: $showPacedReschedule) { SmartPacedRescheduleSheet(studentID: studentID) }
+            .onAppear {
+                withAnimation(.spring(response: 0.7, dampingFraction: 0.75)) {
+                    animateArt = true
+                }
+                if !isRunningUITests {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        sunGlowPulse = true
+                    }
+                }
+            }
         }
     }
 
@@ -620,6 +680,7 @@ struct AssignmentCard: View {
             Rectangle()
                 .fill(isFirst ? Color.clear : (assignment.status == .completed ? Sage.accent : Sage.accent.opacity(0.35)))
                 .frame(width: 3, height: 18)
+                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: assignment.status == .completed)
 
             quickCheckButton
 
@@ -651,6 +712,7 @@ struct AssignmentCard: View {
                         Image(systemName: "checkmark")
                             .font(.system(size: 13, weight: .bold))
                             .foregroundStyle(.white)
+                            .symbolEffect(.bounce, value: assignment.status == .completed)
                     } else if isActive {
                         Circle()
                             .stroke(Sage.accent, lineWidth: 2.5)
@@ -737,7 +799,7 @@ struct AssignmentCard: View {
                     .stroke(isActive ? Sage.accent.opacity(0.55) : Color.secondary.opacity(0.12), lineWidth: isActive ? 1.5 : 1)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SpringScaleButtonStyle())
         .accessibilityLabel("\(lesson?.title ?? "Lesson") for \(store.student(for: assignment.studentID)?.name ?? "learner"), \(statusTitle)")
         .accessibilityIdentifier("assignment-\(store.student(for: assignment.studentID)?.name ?? "unknown")-\(lesson?.title ?? "missing")")
     }

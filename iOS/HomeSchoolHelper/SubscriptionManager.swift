@@ -25,7 +25,7 @@ public final class SubscriptionManager: ObservableObject {
 
     public init() {
         #if DEBUG
-        if ProcessInfo.processInfo.environment["HSH_PRO_OVERRIDE"] == "1" {
+        if ProcessInfo.processInfo.environment["HSH_PRO_OVERRIDE"] == "1" || ProcessInfo.processInfo.environment["HSH_UI_TEST_ID"] != nil {
             self.isPro = true
         }
         #endif
@@ -70,7 +70,7 @@ public final class SubscriptionManager: ObservableObject {
 
     public func updatePurchasedProducts() async {
         #if DEBUG
-        if ProcessInfo.processInfo.environment["HSH_PRO_OVERRIDE"] == "1" {
+        if ProcessInfo.processInfo.environment["HSH_PRO_OVERRIDE"] == "1" || ProcessInfo.processInfo.environment["HSH_UI_TEST_ID"] != nil {
             self.isPro = true
             return
         }

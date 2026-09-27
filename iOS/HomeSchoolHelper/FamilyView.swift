@@ -9,17 +9,61 @@ struct FamilyView: View {
     @State private var showPaywall = false
     @State private var editingStudent: Student?
     @State private var studentToDelete: Student?
+    @State private var animateArt = false
+    @State private var sunGlowPulse = false
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Your learning team").font(.caption.weight(.bold)).foregroundStyle(Sage.accent)
-                        Text("Family").font(.largeTitle.bold())
-                        Text("Manage learner profiles and local settings.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                    ZStack(alignment: .topTrailing) {
+                        // Ambient sun glow
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [
+                                        Color.orange.opacity(sunGlowPulse ? 0.22 : 0.08),
+                                        Color.yellow.opacity(sunGlowPulse ? 0.12 : 0.03),
+                                        Color.clear
+                                    ],
+                                    center: .center,
+                                    startRadius: 6,
+                                    endRadius: 70
+                                )
+                            )
+                            .frame(width: 130, height: 130)
+                            .offset(x: 20, y: -25)
+                            .scaleEffect(sunGlowPulse ? 1.08 : 0.94)
+                            .animation(isRunningUITests ? nil : .easeInOut(duration: 3.2).repeatForever(autoreverses: true), value: sunGlowPulse)
+                            .accessibilityHidden(true)
+
+                        // Seedlings & books art
+                        Image("FamilyHeroArt")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(height: 80)
+                            .offset(x: 10, y: -5)
+                            .scaleEffect(animateArt ? 1.0 : 0.92)
+                            .opacity(animateArt ? 1.0 : 0.0)
+                            .accessibilityHidden(true)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "leaf.fill")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(Sage.accent)
+                                Text("Your learning team")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(Sage.accent)
+                            }
+                            Text("Family")
+                                .font(.system(.largeTitle, design: .serif, weight: .bold))
+                            Text(store.state.students.isEmpty ? "Manage learner profiles and local settings." : "\(store.state.students.count) learner\(store.state.students.count == 1 ? "" : "s") growing together.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.trailing, 95)
                     }
                     .padding(.vertical, 4)
                 }
@@ -41,6 +85,10 @@ struct FamilyView: View {
                                     Text(String(student.name.prefix(1)).uppercased())
                                         .font(.title3.weight(.bold))
                                         .foregroundStyle(.white)
+                                    Image(systemName: "leaf.fill")
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(.white.opacity(0.85))
+                                        .offset(x: 13, y: -13)
                                 }
 
                                 VStack(alignment: .leading, spacing: 4) {
@@ -97,14 +145,23 @@ struct FamilyView: View {
                         }
                     }
 
-                    Button("Add Learner", systemImage: "plus") {
+                    Button {
+                        #if os(iOS)
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        #endif
                         if store.state.students.count >= 1 && !SubscriptionManager.shared.isPro {
                             showPaywall = true
                         } else {
                             showAddStudent = true
                         }
+                    } label: {
+                        HStack {
+                            Image(systemName: "plus")
+                            Text("Add Learner")
+                        }
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(Sage.accent)
                     }
-                    .font(.headline.weight(.semibold))
                     .accessibilityIdentifier("addStudent")
                 }
 
@@ -136,6 +193,16 @@ struct FamilyView: View {
             .sheet(isPresented: $showPaywall) { PaywallView() }
             .sheet(item: $editingStudent) { student in
                 EditStudentView(student: student)
+            }
+            .onAppear {
+                withAnimation(.spring(response: 0.7, dampingFraction: 0.75)) {
+                    animateArt = true
+                }
+                if !isRunningUITests {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        sunGlowPulse = true
+                    }
+                }
             }
             .confirmationDialog(
                 "Delete Learner?",
@@ -180,12 +247,10 @@ private struct EditStudentView: View {
                 }
                 Section("Learner details") {
                     TextField("Name", text: $name).accessibilityIdentifier("editStudentName")
-                    LabeledContent("Grade Level") {
-                        GradeLevelMenu(
-                            selection: $gradeLevel,
-                            accessibilityIdentifier: "editStudentGrade"
-                        )
-                    }
+                    GradeLevelMenu(
+                        selection: $gradeLevel,
+                        accessibilityIdentifier: "editStudentGrade"
+                    )
                 }
             }
             .navigationTitle("Edit Learner")
@@ -218,12 +283,10 @@ struct AddStudentView: View {
                 }
                 Section("Learner details") {
                     TextField("Name", text: $name).accessibilityIdentifier("studentName")
-                    LabeledContent("Grade Level") {
-                        GradeLevelMenu(
-                            selection: $gradeLevel,
-                            accessibilityIdentifier: "studentGrade"
-                        )
-                    }
+                    GradeLevelMenu(
+                        selection: $gradeLevel,
+                        accessibilityIdentifier: "studentGrade"
+                    )
                 }
             }
             .navigationTitle("Add Learner")

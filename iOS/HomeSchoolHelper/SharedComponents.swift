@@ -34,44 +34,53 @@ struct GradeLevelMenu: View {
     var onSelect: (() -> Void)?
 
     var body: some View {
-        Menu {
-            ForEach(GradeLevelCatalog.options(including: selection), id: \.self) { grade in
-                Button {
-                    selection = grade
-                    onSelect?()
-                } label: {
-                    if selection == grade {
-                        Label(grade, systemImage: "checkmark")
-                    } else {
-                        Text(grade)
+        if usesFieldStyle {
+            Menu {
+                ForEach(GradeLevelCatalog.options(including: selection), id: \.self) { grade in
+                    Button {
+                        selection = grade
+                        onSelect?()
+                    } label: {
+                        if selection == grade {
+                            Label(grade, systemImage: "checkmark")
+                        } else {
+                            Text(grade)
+                        }
                     }
                 }
-            }
-        } label: {
-            HStack(spacing: 8) {
-                Text(selection.isEmpty ? "Select grade level" : selection)
-                    .foregroundStyle(selection.isEmpty ? Color.secondary : Color.primary)
-                if usesFieldStyle {
+            } label: {
+                HStack(spacing: 8) {
+                    Text(selection.isEmpty ? "Select grade level" : selection)
+                        .foregroundStyle(selection.isEmpty ? Color.secondary : Color.primary)
                     Spacer(minLength: 8)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
                 }
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: usesFieldStyle ? .infinity : nil, alignment: .leading)
-            .padding(usesFieldStyle ? 12 : 0)
-            .background {
-                if usesFieldStyle {
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background {
                     RoundedRectangle(cornerRadius: 10)
                         .fill(Color(uiColor: .secondarySystemBackground))
                 }
+                .contentShape(Rectangle())
             }
-            .contentShape(Rectangle())
+            .accessibilityIdentifier(accessibilityIdentifier)
+        } else {
+            Picker("Grade Level", selection: $selection) {
+                if selection.isEmpty {
+                    Text("Select grade level").tag("")
+                }
+                ForEach(GradeLevelCatalog.options(including: selection), id: \.self) { grade in
+                    Text(grade).tag(grade)
+                }
+            }
+            .pickerStyle(.menu)
+            .accessibilityIdentifier(accessibilityIdentifier)
+            .onChange(of: selection) { _ in
+                onSelect?()
+            }
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Grade Level")
-        .accessibilityValue(selection.isEmpty ? "Not selected" : selection)
-        .accessibilityIdentifier(accessibilityIdentifier)
     }
 }
 
@@ -117,6 +126,7 @@ struct StudentScopePicker: View {
     @EnvironmentObject private var store: HomeschoolStore
     let students: [Student]
     @Binding var selection: UUID?
+    @Namespace private var scopeNamespace
 
     var body: some View {
         if !students.isEmpty {
@@ -128,7 +138,10 @@ struct StudentScopePicker: View {
                     let isAllSelected = selection == nil
 
                     Button {
-                        withAnimation(.easeInOut(duration: 0.2)) { selection = nil }
+                        #if os(iOS)
+                        UISelectionFeedbackGenerator().selectionChanged()
+                        #endif
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { selection = nil }
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: "person.2.fill")
@@ -145,9 +158,19 @@ struct StudentScopePicker: View {
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(isAllSelected ? Sage.accent : Color(uiColor: .secondarySystemBackground), in: Capsule())
+                        .background {
+                            if isAllSelected {
+                                Capsule()
+                                    .fill(Sage.accent)
+                                    .matchedGeometryEffect(id: "scopePillHighlight", in: scopeNamespace)
+                            } else {
+                                Capsule()
+                                    .fill(Color(uiColor: .secondarySystemBackground))
+                            }
+                        }
                         .foregroundStyle(isAllSelected ? .white : .primary)
                     }
+                    .buttonStyle(.plain)
                     .accessibilityLabel("Filter: All learners")
                     .accessibilityIdentifier("filterAllLearners")
 
@@ -158,7 +181,10 @@ struct StudentScopePicker: View {
                         let studentCompleted = studentAssignments.filter { $0.status == .completed }.count
 
                         Button {
-                            withAnimation(.easeInOut(duration: 0.2)) { selection = student.id }
+                            #if os(iOS)
+                            UISelectionFeedbackGenerator().selectionChanged()
+                            #endif
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { selection = student.id }
                         } label: {
                             HStack(spacing: 6) {
                                 Image(systemName: "person.fill")
@@ -175,9 +201,19 @@ struct StudentScopePicker: View {
                             }
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
-                            .background(isSelected ? Sage.accent : Color(uiColor: .secondarySystemBackground), in: Capsule())
+                            .background {
+                                if isSelected {
+                                    Capsule()
+                                        .fill(Sage.accent)
+                                        .matchedGeometryEffect(id: "scopePillHighlight", in: scopeNamespace)
+                                } else {
+                                    Capsule()
+                                        .fill(Color(uiColor: .secondarySystemBackground))
+                                }
+                            }
                             .foregroundStyle(isSelected ? .white : .primary)
                         }
+                        .buttonStyle(.plain)
                         .accessibilityLabel("Filter: \(student.name)")
                         .accessibilityIdentifier("filterStudent-\(student.name)")
                     }
@@ -216,13 +252,22 @@ struct ProgressCard: View {
     let total: Int
     private var progress: Double { total == 0 ? 0 : Double(completed) / Double(total) }
     private var percent: Int { total == 0 ? 0 : Int((Double(completed) / Double(total)) * 100) }
+    private var isAllComplete: Bool { total > 0 && completed == total }
 
     var body: some View {
         HStack(spacing: 16) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("DAILY ORBIT")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Sage.accent)
+                HStack(spacing: 6) {
+                    Text("DAILY ORBIT")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Sage.accent)
+                    if isAllComplete {
+                        Image(systemName: "sparkles")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.orange)
+                            .symbolEffect(.bounce, value: isAllComplete)
+                    }
+                }
 
                 Text("\(completed) of \(total) lessons complete")
                     .font(.title3.weight(.bold))
@@ -254,7 +299,8 @@ struct ProgressCard: View {
 
                 // Preserved for automated accessibility audits and UITest assertions
                 ProgressView(value: progress)
-                    .tint(Sage.accent)
+                    .tint(isAllComplete ? Color.orange : Sage.accent)
+                    .animation(.spring(response: 0.5, dampingFraction: 0.8), value: progress)
                     .accessibilityLabel("Family progress")
                     .accessibilityValue("\(completed) of \(total) lessons complete")
             }
@@ -268,19 +314,30 @@ struct ProgressCard: View {
                 Circle()
                     .trim(from: 0, to: CGFloat(min(1.0, max(0.0, progress))))
                     .stroke(
-                        Sage.accent,
+                        isAllComplete ? Color.orange : Sage.accent,
                         style: StrokeStyle(lineWidth: 7, lineCap: .round)
                     )
                     .rotationEffect(.degrees(-90))
                     .animation(.spring(response: 0.5, dampingFraction: 0.8), value: progress)
+                    .shadow(color: isAllComplete ? Color.orange.opacity(0.3) : Color.clear, radius: 5)
 
                 VStack(spacing: 0) {
-                    Text("\(percent)%")
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(Sage.accent)
-                    Text("Done")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(.secondary)
+                    if isAllComplete {
+                        Image(systemName: "sun.max.fill")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(Color.orange)
+                            .symbolEffect(.bounce, value: isAllComplete)
+                        Text("Done!")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(Sage.accent)
+                    } else {
+                        Text("\(percent)%")
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundStyle(Sage.accent)
+                        Text("Done")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             .frame(width: 68, height: 68)
@@ -292,8 +349,18 @@ struct ProgressCard: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
+                .stroke(isAllComplete ? Color.orange.opacity(0.3) : Color.secondary.opacity(0.12), lineWidth: 1)
         )
+    }
+}
+
+struct SpringScaleButtonStyle: ButtonStyle {
+    var pressedScale: CGFloat = 0.97
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? pressedScale : 1.0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.65), value: configuration.isPressed)
     }
 }
 
@@ -381,3 +448,8 @@ func Hours(minutes: Int) -> String {
     if remainder == 0 { return "\(hours)h" }
     return "\(hours)h \(remainder)m"
 }
+
+var isRunningUITests: Bool {
+    ProcessInfo.processInfo.environment["HSH_UI_TEST_ID"] != nil || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+}
+
