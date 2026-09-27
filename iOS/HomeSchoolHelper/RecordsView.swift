@@ -35,6 +35,8 @@ struct RecordsView: View {
     @EnvironmentObject private var store: HomeschoolStore
     @State private var selectedYearID: UUID?
     @State private var activeSheet: RecordsActiveSheet?
+    @State private var animateArt = false
+    @State private var sunGlowPulse = false
 
     private var currentYear: AcademicYear {
         if let selectedYearID, let year = store.academicYear(for: selectedYearID) {
@@ -83,6 +85,16 @@ struct RecordsView: View {
             .sheet(item: $activeSheet) { sheet in
                 sheetView(for: sheet)
             }
+            .onAppear {
+                withAnimation(.spring(response: 0.7, dampingFraction: 0.75)) {
+                    animateArt = true
+                }
+                if !isRunningUITests {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        sunGlowPulse = true
+                    }
+                }
+            }
         }
     }
 
@@ -111,45 +123,131 @@ struct RecordsView: View {
     @ViewBuilder
     private var complianceSection: some View {
         Section {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .top, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 8) {
-                            Text("ACADEMIC COMPLIANCE")
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(Sage.accent)
+            VStack(alignment: .leading, spacing: 12) {
+                // Botanical Header Banner with Records Hero Artwork
+                ZStack(alignment: .topTrailing) {
+                    // Ambient radial sun glow
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [
+                                    Color.orange.opacity(sunGlowPulse ? 0.22 : 0.08),
+                                    Color.yellow.opacity(sunGlowPulse ? 0.12 : 0.03),
+                                    Color.clear
+                                ],
+                                center: .center,
+                                startRadius: 4,
+                                endRadius: 55
+                            )
+                        )
+                        .frame(width: 95, height: 95)
+                        .offset(x: 10, y: -15)
+                        .scaleEffect(sunGlowPulse ? 1.08 : 0.94)
+                        .animation(isRunningUITests ? nil : .easeInOut(duration: 3.2).repeatForever(autoreverses: true), value: sunGlowPulse)
+                        .accessibilityHidden(true)
+
+                    // Archival chronicle art (vintage leather bound ledger with sage ribbon & inkwell)
+                    Image("RecordsHeroArt")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(height: 64)
+                        .offset(x: 5, y: -4)
+                        .scaleEffect(animateArt ? 1.0 : 0.92)
+                        .opacity(animateArt ? 1.0 : 0.0)
+                        .accessibilityHidden(true)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 6) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "character.book.closed.fill")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(Sage.accent)
+                                Text("COMPLIANCE & RECORDS")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(Sage.accent)
+                            }
 
                             academicYearMenu
                         }
 
                         Text("Annual Learning Chronicle")
-                            .font(.title2.weight(.bold))
+                            .font(.system(.title3, design: .serif, weight: .bold))
+                            .foregroundStyle(.primary)
+
                         Text("Tracking towards \(currentYear.targetDays) required school days.")
-                            .font(.subheadline)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.trailing, 75)
+                }
+
+                // Interactive Compliance Progress Row with Dual-Tone Gradient Ring & Sparkle
+                HStack(alignment: .center, spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .stroke(Color(.tertiarySystemFill), lineWidth: 6)
+
+                        Circle()
+                            .trim(from: 0, to: CGFloat(max(0.04, complianceProgress)))
+                            .stroke(
+                                LinearGradient(
+                                    colors: [Sage.accent, Color.orange.opacity(0.85)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                            )
+                            .rotationEffect(.degrees(-90))
+                            .animation(.spring(response: 0.8, dampingFraction: 0.75), value: complianceProgress)
+
+                        VStack(spacing: 0) {
+                            if complianceProgress >= 1.0 {
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(Color.orange)
+                            }
+                            Text("\(totalAttendanceDays)")
+                                .font(.system(size: 15, weight: .bold, design: .rounded))
+                                .foregroundStyle(Sage.accent)
+                            Text("/ \(currentYear.targetDays)")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(width: 54, height: 54)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 5) {
+                            Text(complianceProgress >= 1.0 ? "Target Completed!" : "\(Int(complianceProgress * 100))% Annual Target")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(complianceProgress >= 1.0 ? Color.orange : .primary)
+
+                            if complianceProgress >= 1.0 {
+                                Image(systemName: "checkmark.seal.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(Sage.accent)
+                            }
+                        }
+
+                        let remaining = max(0, currentYear.targetDays - totalAttendanceDays)
+                        Text(remaining == 0 ? "All required school days completed for \(currentYear.title)." : "\(remaining) day\(remaining == 1 ? "" : "s") remaining to meet annual requirement.")
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
 
                     Spacer()
-
-                    ZStack {
-                        Circle()
-                            .stroke(Color(.tertiarySystemFill), lineWidth: 7)
-                        Circle()
-                            .trim(from: 0, to: CGFloat(max(0.04, complianceProgress)))
-                            .stroke(Sage.accent, style: StrokeStyle(lineWidth: 7, lineCap: .round))
-                            .rotationEffect(.degrees(-90))
-
-                        VStack(spacing: 0) {
-                            Text("\(totalAttendanceDays)")
-                                .font(.system(size: 17, weight: .bold))
-                                .foregroundStyle(Sage.accent)
-                            Text("/ \(currentYear.targetDays)")
-                                .font(.caption2.weight(.bold))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .frame(width: 64, height: 64)
                 }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color(.secondarySystemBackground))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(complianceProgress >= 1.0 ? Color.orange.opacity(0.3) : Sage.accent.opacity(0.12), lineWidth: 1)
+                )
 
                 Divider()
 
@@ -159,7 +257,7 @@ struct RecordsView: View {
                     Metric(title: "Activities", value: Hours(minutes: activityMinutes))
                 }
             }
-            .padding(.vertical, 8)
+            .padding(.vertical, 4)
         }
     }
 
@@ -203,12 +301,18 @@ struct RecordsView: View {
     private var reportsSection: some View {
         Section("Official reports & exports") {
             Button {
+                #if canImport(UIKit)
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                #endif
                 activeSheet = .export
             } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "doc.badge.arrow.up.fill")
-                        .font(.title3)
+                        .font(.body.weight(.semibold))
                         .foregroundStyle(Sage.accent)
+                        .frame(width: 36, height: 36)
+                        .background(Sage.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Export official records")
                             .font(.headline.weight(.semibold))
@@ -227,12 +331,18 @@ struct RecordsView: View {
             .accessibilityIdentifier("exportOfficialRecords")
 
             Button {
+                #if canImport(UIKit)
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                #endif
                 activeSheet = .academicYears
             } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "calendar.badge.clock")
-                        .font(.title3)
-                        .foregroundStyle(Sage.accent)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.orange)
+                        .frame(width: 36, height: 36)
+                        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
                     VStack(alignment: .leading, spacing: 2) {
                         Text("School years & terms")
                             .font(.headline.weight(.semibold))
@@ -255,11 +365,19 @@ struct RecordsView: View {
     @ViewBuilder
     private var learningRecordsSection: some View {
         Section("Learning records") {
-            Button { activeSheet = .attendance } label: {
+            Button {
+                #if canImport(UIKit)
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                #endif
+                activeSheet = .attendance
+            } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.title3)
-                        .foregroundStyle(Sage.accent)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.green)
+                        .frame(width: 36, height: 36)
+                        .background(Color.green.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Attendance & hours")
                             .font(.headline.weight(.semibold))
@@ -277,11 +395,19 @@ struct RecordsView: View {
             }
             .accessibilityIdentifier("openAttendance")
 
-            Button { activeSheet = .activity } label: {
+            Button {
+                #if canImport(UIKit)
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                #endif
+                activeSheet = .activity
+            } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "clock.arrow.circlepath")
-                        .font(.title3)
-                        .foregroundStyle(Sage.accent)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.blue)
+                        .frame(width: 36, height: 36)
+                        .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Log retrospective activity")
                             .font(.headline.weight(.semibold))
@@ -299,11 +425,19 @@ struct RecordsView: View {
             }
             .accessibilityIdentifier("addActivity")
 
-            Button { activeSheet = .readingLog } label: {
+            Button {
+                #if canImport(UIKit)
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                #endif
+                activeSheet = .readingLog
+            } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "books.vertical.fill")
-                        .font(.title3)
-                        .foregroundStyle(Sage.accent)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.purple)
+                        .frame(width: 36, height: 36)
+                        .background(Color.purple.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Reading log & book list")
                             .font(.headline.weight(.semibold))
@@ -321,11 +455,19 @@ struct RecordsView: View {
             }
             .accessibilityIdentifier("openReadingLog")
 
-            Button { activeSheet = .portfolio } label: {
+            Button {
+                #if canImport(UIKit)
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                #endif
+                activeSheet = .portfolio
+            } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "photo.on.rectangle.angled")
-                        .font(.title3)
-                        .foregroundStyle(Sage.accent)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.teal)
+                        .frame(width: 36, height: 36)
+                        .background(Color.teal.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Student work portfolio")
                             .font(.headline.weight(.semibold))
@@ -343,11 +485,19 @@ struct RecordsView: View {
             }
             .accessibilityIdentifier("openPortfolio")
 
-            Button { activeSheet = .exportReportCard } label: {
+            Button {
+                #if canImport(UIKit)
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                #endif
+                activeSheet = .exportReportCard
+            } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "chart.bar.doc.horizontal.fill")
-                        .font(.title3)
-                        .foregroundStyle(Sage.accent)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.indigo)
+                        .frame(width: 36, height: 36)
+                        .background(Color.indigo.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Academic report cards")
                             .font(.headline.weight(.semibold))
