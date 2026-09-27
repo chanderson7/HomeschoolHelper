@@ -30,24 +30,99 @@ struct OnboardingView: View {
 
     private let popularSubjects = ["Math", "Reading", "Language Arts", "Science", "History", "Custom"]
 
+    private func iconForSubject(_ subject: String) -> String {
+        switch subject {
+        case "Math": return "📐"
+        case "Reading": return "📚"
+        case "Language Arts": return "✍️"
+        case "Science": return "🔬"
+        case "History": return "🧭"
+        case "Custom": return "✨"
+        default: return "📖"
+        }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
+                    // Step Progress Indicator
+                    HStack(spacing: 8) {
+                        HStack(spacing: 6) {
+                            ZStack {
+                                Circle()
+                                    .fill(Sage.accent)
+                                    .frame(width: 22, height: 22)
+                                if currentStep == .subject {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundStyle(.white)
+                                } else {
+                                    Text("1")
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundStyle(.white)
+                                }
+                            }
+                            Text("Learner")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(Sage.accent)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Sage.accent.opacity(0.12), in: Capsule())
+
+                        Rectangle()
+                            .fill(currentStep == .subject ? Sage.accent : Color.secondary.opacity(0.2))
+                            .frame(width: 32, height: 2.5)
+                            .animation(.spring(response: 0.35, dampingFraction: 0.75), value: currentStep)
+
+                        HStack(spacing: 6) {
+                            ZStack {
+                                Circle()
+                                    .fill(currentStep == .subject ? Sage.accent : Color(uiColor: .tertiarySystemFill))
+                                    .frame(width: 22, height: 22)
+                                Text("2")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(currentStep == .subject ? .white : .secondary)
+                            }
+                            Text("Starter Subject")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(currentStep == .subject ? Sage.accent : .secondary)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(currentStep == .subject ? Sage.accent.opacity(0.12) : Color.clear, in: Capsule())
+                    }
+                    .padding(.top, 12)
+
                     // Header
                     VStack(spacing: 12) {
                         ZStack {
                             Circle()
-                                .fill(Sage.soft)
-                                .frame(width: 76, height: 76)
-                            Image(systemName: currentStep == .child ? "sun.max.fill" : "book.fill")
-                                .font(.system(size: 38))
-                                .foregroundStyle(Sage.accent)
+                                .fill(
+                                    RadialGradient(
+                                        colors: [
+                                            Color.orange.opacity(0.18),
+                                            Sage.soft,
+                                            Color.clear
+                                        ],
+                                        center: .center,
+                                        startRadius: 8,
+                                        endRadius: 55
+                                    )
+                                )
+                                .frame(width: 90, height: 90)
+
+                            Image("LoginHeroArt")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(height: 72)
+                                .accessibilityHidden(true)
                         }
-                        .padding(.top, 16)
+                        .padding(.top, 4)
 
                         Text(currentStep == .child ? "Welcome to\nEZHomeschool" : "What is \(name.isEmpty ? "your learner" : name)\nlearning first?")
-                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                            .font(.system(size: 28, weight: .bold, design: .serif))
                             .multilineTextAlignment(.center)
                             .lineSpacing(2)
 
@@ -63,7 +138,7 @@ struct OnboardingView: View {
                         VStack(alignment: .leading, spacing: 18) {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Step 1: Who is learning?")
-                                    .font(.headline)
+                                    .font(.headline.weight(.bold))
                                 Text("Enter your learner’s name and current grade level.")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -77,7 +152,11 @@ struct OnboardingView: View {
                                     TextField("e.g. Emma", text: $name)
                                         .textFieldStyle(.plain)
                                         .padding(12)
-                                        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                                        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(isNameFocused ? Sage.accent : Color.clear, lineWidth: 1.5)
+                                        )
                                         .focused($isNameFocused)
                                         .accessibilityIdentifier("onboardingStudentName")
                                 }
@@ -106,18 +185,23 @@ struct OnboardingView: View {
                             }
 
                             Button {
+                                #if os(iOS)
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                #endif
                                 proceedToSubject()
                             } label: {
-                                HStack {
+                                HStack(spacing: 8) {
                                     Text("Continue to Subjects")
                                         .font(.headline)
                                     Image(systemName: "arrow.right")
+                                        .font(.headline)
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 14)
                                 .background(Sage.accent, in: RoundedRectangle(cornerRadius: 14))
                                 .foregroundStyle(.white)
                             }
+                            .buttonStyle(SpringScaleButtonStyle())
                             .accessibilityIdentifier("continueToSubject")
                         }
                         .padding(22)
@@ -128,7 +212,7 @@ struct OnboardingView: View {
                         VStack(alignment: .leading, spacing: 18) {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Step 2: Choose a starter subject")
-                                    .font(.headline)
+                                    .font(.headline.weight(.bold))
                                 Text("You can add more subjects and edit lessons anytime.")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -138,19 +222,40 @@ struct OnboardingView: View {
                             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                                 ForEach(popularSubjects, id: \.self) { subject in
                                     Button {
-                                        selectedSubject = subject
+                                        #if os(iOS)
+                                        UISelectionFeedbackGenerator().selectionChanged()
+                                        #endif
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                            selectedSubject = subject
+                                        }
                                         if subject == "Custom" {
                                             isCustomSubjectFocused = true
                                         }
                                     } label: {
-                                        Text(subject)
-                                            .font(.subheadline.weight(selectedSubject == subject ? .bold : .medium))
-                                            .frame(maxWidth: .infinity)
-                                            .padding(.vertical, 12)
-                                            .background(selectedSubject == subject ? Sage.accent : Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
-                                            .foregroundStyle(selectedSubject == subject ? .white : .primary)
+                                        HStack(spacing: 8) {
+                                            Text(iconForSubject(subject))
+                                                .font(.title3)
+                                            Text(subject)
+                                                .font(.subheadline.weight(selectedSubject == subject ? .bold : .medium))
+                                                .lineLimit(1)
+                                            Spacer()
+                                            if selectedSubject == subject {
+                                                Image(systemName: "checkmark.circle.fill")
+                                                    .font(.subheadline.weight(.bold))
+                                                    .foregroundStyle(.white)
+                                                    .symbolEffect(.bounce, value: selectedSubject == subject)
+                                            }
+                                        }
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 12)
+                                        .background(selectedSubject == subject ? Sage.accent : Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
+                                        .foregroundStyle(selectedSubject == subject ? .white : .primary)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 14)
+                                                .stroke(selectedSubject == subject ? Sage.accent : Color.clear, lineWidth: 1.5)
+                                        )
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(SpringScaleButtonStyle())
                                 }
                             }
 
@@ -162,7 +267,11 @@ struct OnboardingView: View {
                                     TextField("e.g. Nature Study, Art, Latin", text: $customSubject)
                                         .textFieldStyle(.plain)
                                         .padding(12)
-                                        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                                        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(isCustomSubjectFocused ? Sage.accent : Color.clear, lineWidth: 1.5)
+                                        )
                                         .focused($isCustomSubjectFocused)
                                 }
                             }
@@ -196,18 +305,23 @@ struct OnboardingView: View {
                             }
 
                             Button {
+                                #if os(iOS)
+                                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                                #endif
                                 completeSetup()
                             } label: {
-                                HStack {
+                                HStack(spacing: 8) {
                                     Text("Finish & Start Learning")
                                         .font(.headline)
                                     Image(systemName: "checkmark")
+                                        .font(.headline)
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 14)
                                 .background(Sage.accent, in: RoundedRectangle(cornerRadius: 14))
                                 .foregroundStyle(.white)
                             }
+                            .buttonStyle(SpringScaleButtonStyle())
                             .accessibilityIdentifier("saveOnboardingStudent")
 
                             Button {
@@ -227,17 +341,25 @@ struct OnboardingView: View {
                     }
 
                     // Secondary actions: Sample Household & Explore
-                    VStack(spacing: 12) {
+                    VStack(spacing: 14) {
                         Button {
+                            #if os(iOS)
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            #endif
                             loadSampleHousehold()
                         } label: {
                             HStack(spacing: 6) {
-                                Image(systemName: "sparkles.rectangle.stack")
+                                Image(systemName: "sparkles.rectangle.stack.fill")
+                                    .foregroundStyle(Sage.accent)
                                 Text("Load Sample Household (Quick Demo)")
                             }
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(Sage.accent)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Sage.accent.opacity(0.1), in: Capsule())
                         }
+                        .buttonStyle(SpringScaleButtonStyle())
                         .accessibilityIdentifier("loadSampleHouseholdButton")
 
                         Button(action: onExplore) {
@@ -245,6 +367,7 @@ struct OnboardingView: View {
                                 .font(.footnote.weight(.medium))
                                 .foregroundStyle(.secondary)
                         }
+                        .buttonStyle(SpringScaleButtonStyle())
                         .accessibilityIdentifier("skipOnboarding")
                     }
                     .padding(.bottom, 24)

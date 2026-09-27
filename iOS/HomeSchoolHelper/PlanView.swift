@@ -30,11 +30,64 @@ struct PlanView: View {
     }
 
     @State private var selectedCourseForRoadmap: Course?
+    @State private var animateArt = false
+    @State private var sunGlowPulse = false
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
+                    ZStack(alignment: .topTrailing) {
+                        // Ambient sun glow
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [
+                                        Color.orange.opacity(sunGlowPulse ? 0.22 : 0.08),
+                                        Color.yellow.opacity(sunGlowPulse ? 0.12 : 0.03),
+                                        Color.clear
+                                    ],
+                                    center: .center,
+                                    startRadius: 6,
+                                    endRadius: 70
+                                )
+                            )
+                            .frame(width: 130, height: 130)
+                            .offset(x: 20, y: -25)
+                            .scaleEffect(sunGlowPulse ? 1.08 : 0.94)
+                            .animation(isRunningUITests ? nil : .easeInOut(duration: 3.2).repeatForever(autoreverses: true), value: sunGlowPulse)
+                            .accessibilityHidden(true)
+
+                        // Botanical parchment roadmap & compass art
+                        Image("PlanHeroArt")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(height: 82)
+                            .offset(x: 10, y: -5)
+                            .scaleEffect(animateArt ? 1.0 : 0.92)
+                            .opacity(animateArt ? 1.0 : 0.0)
+                            .accessibilityHidden(true)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "map.fill")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(Sage.accent)
+                                Text("Curriculum & Roadmap")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(Sage.accent)
+                            }
+                            Text("Curriculum")
+                                .font(.system(.largeTitle, design: .serif, weight: .bold))
+                            Text(store.state.courses.isEmpty ? "Organize subjects, lessons, and learning paths." : "\(store.state.courses.count) subject\(store.state.courses.count == 1 ? "" : "s") planned across your home.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.trailing, 95)
+                    }
+                    .padding(.vertical, 4)
+
                     StudentScopePicker(students: store.state.students, selection: $studentID)
                         .listRowInsets(EdgeInsets())
                 }
@@ -82,6 +135,16 @@ struct PlanView: View {
             } message: { course in
                 Text("Deleting \(course.title) will permanently remove this course, all of its lessons, and all associated student assignments.")
             }
+            .onAppear {
+                withAnimation(.spring(response: 0.7, dampingFraction: 0.75)) {
+                    animateArt = true
+                }
+                if !isRunningUITests {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        sunGlowPulse = true
+                    }
+                }
+            }
         }
     }
 
@@ -96,27 +159,38 @@ struct PlanView: View {
     private var emptyCoursesSection: some View {
         Section {
             VStack(alignment: .center, spacing: 14) {
-                Image(systemName: "book.closed")
-                    .font(.system(size: 40))
-                    .foregroundStyle(Sage.accent)
-                    .padding(.top, 12)
+                ZStack {
+                    Circle()
+                        .fill(Sage.soft)
+                        .frame(width: 68, height: 68)
+                    Image(systemName: "book.pages.fill")
+                        .font(.system(size: 30))
+                        .foregroundStyle(Sage.accent)
+                }
+                .padding(.top, 12)
+
                 Text("No subjects created yet")
-                    .font(.headline)
-                Text("Create courses like Math, Reading, or Science to generate lesson sequences.")
+                    .font(.headline.weight(.bold))
+                Text("Create courses like Math, Reading, or Science to generate organized lesson sequences.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
 
                 Button {
+                    #if os(iOS)
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    #endif
                     showBuilder = true
                 } label: {
                     Label("Add First Subject", systemImage: "plus")
                         .font(.headline)
-                        .padding(.horizontal, 20)
+                        .padding(.horizontal, 24)
                         .padding(.vertical, 12)
-                        .background(Sage.accent, in: RoundedRectangle(cornerRadius: 12))
+                        .background(Sage.accent, in: Capsule())
                         .foregroundStyle(.white)
                 }
+                .buttonStyle(SpringScaleButtonStyle())
                 .padding(.bottom, 12)
             }
             .frame(maxWidth: .infinity)
@@ -232,6 +306,20 @@ private struct CourseRowView: View {
         return "📖"
     }
 
+    private var percent: Int { totalCount == 0 ? 0 : Int(progress * 100) }
+
+    private var subjectTint: Color {
+        let lower = course.title.lowercased()
+        if lower.contains("math") || lower.contains("algebra") || lower.contains("geometry") { return Color.orange }
+        if lower.contains("read") || lower.contains("lit") || lower.contains("english") { return Color.blue }
+        if lower.contains("science") || lower.contains("bio") || lower.contains("chem") || lower.contains("physic") { return Sage.accent }
+        if lower.contains("history") || lower.contains("geography") || lower.contains("social") { return Color.brown }
+        if lower.contains("art") || lower.contains("draw") { return Color.purple }
+        if lower.contains("music") { return Color.pink }
+        if lower.contains("code") || lower.contains("program") { return Color.teal }
+        return Sage.accent
+    }
+
     var body: some View {
         Button {
             onOpenRoadmap?()
@@ -241,7 +329,7 @@ private struct CourseRowView: View {
                     Text(subjectIcon)
                         .font(.title2)
                         .frame(width: 44, height: 44)
-                        .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12))
+                        .background(subjectTint.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text(course.title)
@@ -266,22 +354,34 @@ private struct CourseRowView: View {
 
                     Spacer()
 
-                    VStack(alignment: .trailing, spacing: 2) {
+                    VStack(alignment: .trailing, spacing: 4) {
+                        HStack(spacing: 4) {
+                            Text("\(percent)%")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(progress >= 1.0 ? Color.orange : Sage.accent)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .background(
+                                    (progress >= 1.0 ? Color.orange : Sage.accent).opacity(0.12),
+                                    in: Capsule()
+                                )
+                            Image(systemName: "chevron.right")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(.tertiary)
+                        }
                         Text("\(completedCount)/\(totalCount) done")
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(Sage.accent)
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(.tertiary)
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.secondary)
                     }
                 }
 
                 ProgressView(value: progress)
-                    .tint(Sage.accent)
+                    .tint(progress >= 1.0 ? Color.orange : subjectTint)
+                    .animation(.spring(response: 0.45, dampingFraction: 0.8), value: progress)
             }
             .padding(.vertical, 6)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SpringScaleButtonStyle())
     }
 }
 
