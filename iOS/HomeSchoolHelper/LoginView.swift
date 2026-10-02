@@ -3,7 +3,10 @@ import HomeschoolAuth
 
 struct LoginView: View {
     @EnvironmentObject private var auth: AuthStore
+    @Environment(\.dismiss) private var dismiss
     var recoveringPassword = false
+    var isDismissible = false
+    var onContinueAsGuest: (() -> Void)? = nil
     @State private var creatingAccount = false
     @State private var email = ""
     @State private var password = ""
@@ -333,6 +336,39 @@ struct LoginView: View {
                             }
                             .disabled(!email.contains("@") || auth.isBusy)
                             .accessibilityIdentifier("loginResetPassword")
+
+                            if let onContinueAsGuest {
+                                HStack(spacing: 12) {
+                                    Rectangle()
+                                        .fill(Color(uiColor: .separator).opacity(0.45))
+                                        .frame(height: 1)
+                                    Text("or")
+                                        .font(.caption.weight(.medium))
+                                        .foregroundStyle(.secondary)
+                                    Rectangle()
+                                        .fill(Color(uiColor: .separator).opacity(0.45))
+                                        .frame(height: 1)
+                                }
+                                .padding(.vertical, 4)
+
+                                Button {
+                                    UISelectionFeedbackGenerator().selectionChanged()
+                                    onContinueAsGuest()
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "person.crop.circle.badge.checkmark")
+                                            .font(.subheadline)
+                                        Text("Continue as Guest / Try Demo")
+                                            .font(.subheadline.weight(.semibold))
+                                    }
+                                    .foregroundStyle(Sage.accent)
+                                    .padding(.vertical, 10)
+                                    .padding(.horizontal, 18)
+                                    .background(Sage.accent.opacity(0.12), in: Capsule())
+                                }
+                                .disabled(auth.isBusy)
+                                .accessibilityIdentifier("loginContinueAsGuest")
+                            }
                         }
                     } else {
                         Button("Cancel and sign out") {
@@ -372,6 +408,17 @@ struct LoginView: View {
             .background(Sage.background.ignoresSafeArea())
             .scrollDismissesKeyboard(.interactively)
             .accessibilityIdentifier("loginScreen")
+            .toolbar {
+                if isDismissible {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            dismiss()
+                        }
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(Sage.accent)
+                    }
+                }
+            }
         }
         .onAppear {
             withAnimation(.spring(response: 0.7, dampingFraction: 0.72)) {

@@ -23,6 +23,7 @@ struct SettingsView: View {
     @State private var confirmSignOut = false
     @State private var confirmEraseLocalData = false
     @State private var confirmLoadSampleData = false
+    @State private var showSignInSheet = false
 
     private var appVersionString: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
@@ -176,6 +177,21 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                         .padding(.vertical, 2)
+
+                        Button {
+                            showSignInSheet = true
+                        } label: {
+                            HStack {
+                                Label("Sign In or Create Account", systemImage: "person.crop.circle.badge.plus")
+                                    .foregroundStyle(Sage.accent)
+                                    .font(.subheadline.weight(.semibold))
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .accessibilityIdentifier("settingsSignInButton")
                     }
                 }
 
@@ -421,6 +437,10 @@ struct SettingsView: View {
                 Text("This permanently deletes all learners, lessons, attendance, and grades stored on this device and resets your household to blank. This action cannot be undone.")
             }
             .manageSubscriptionsSheet(isPresented: $showManageSubscriptions)
+            .sheet(isPresented: $showSignInSheet) {
+                LoginView(isDismissible: true)
+                    .environmentObject(auth)
+            }
             .confirmationDialog(
                 "Load Sample Household Data?",
                 isPresented: $confirmLoadSampleData,

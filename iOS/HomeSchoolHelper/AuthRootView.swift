@@ -6,6 +6,7 @@ struct AuthRootView: View {
     @EnvironmentObject private var auth: AuthStore
     @Environment(\.scenePhase) private var scenePhase
     @State private var splashCompleted = false
+    @AppStorage("hsh_is_guest_mode") private var isGuestMode = false
 
     var body: some View {
         ZStack {
@@ -47,6 +48,13 @@ struct AuthRootView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await auth.refreshSession() } }
         }
+        .onChange(of: auth.phase) { oldPhase, newPhase in
+            if case .signedIn = newPhase {
+                isGuestMode = false
+            } else if case .signedIn = oldPhase, case .signedOut = newPhase {
+                isGuestMode = false
+            }
+        }
     }
 
     @ViewBuilder private var protectedContent: some View {
@@ -54,12 +62,36 @@ struct AuthRootView: View {
         case .loading:
             SplashScreenView()
         case .signedOut:
-            LoginView()
+            if isGuestMode {
+                GuestSchoolView()
+            } else {
+                LoginView(onContinueAsGuest: {
+                    withAnimation(.easeInOut(duration: 0.35)) {
+                        isGuestMode = true
+                    }
+                })
+            }
         case .passwordRecovery:
             LoginView(recoveringPassword: true)
         case .signedIn(let identity):
             SignedInSchoolView(identity: identity).id(identity.id)
         }
+    }
+}
+
+private struct GuestSchoolView: View {
+    @StateObject private var store: HomeschoolStore
+
+    init() {
+        _store = StateObject(wrappedValue: HomeschoolStore(repository: JSONSchoolRepository(
+            fileURL: HomeschoolStore.defaultFileURL()
+        )))
+    }
+
+    var body: some View {
+        HomeTabView()
+            .environmentObject(store)
+            .environment(\.signedInIdentity, nil)
     }
 }
 
@@ -72,8 +104,19 @@ private struct SignedInSchoolView: View {
 
     init(identity: AuthIdentity) {
         self.identity = identity
+        let accountURL = HomeschoolStore.accountFileURL(userID: identity.id)
+        let defaultURL = HomeschoolStore.defaultFileURL()
+
+        // One-time seamless migration: If account file does not exist yet on disk,
+        // but local guest data exists at defaultURL, copy it so no records are lost.
+        let fm = FileManager.default
+        if !fm.fileExists(atPath: accountURL.path) && fm.fileExists(atPath: defaultURL.path) {
+            try? fm.createDirectory(at: accountURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? fm.copyItem(at: defaultURL, to: accountURL)
+        }
+
         _store = StateObject(wrappedValue: HomeschoolStore(repository: JSONSchoolRepository(
-            fileURL: HomeschoolStore.accountFileURL(userID: identity.id)
+            fileURL: accountURL
         )))
     }
 
@@ -81,6 +124,11 @@ private struct SignedInSchoolView: View {
         HomeTabView()
             .environmentObject(store)
             .environment(\.signedInIdentity, identity)
+            .task {
+                if store.state != SchoolState() {
+                    cloudSync.scheduleAutoSync(state: store.state, userID: identity.id, client: auth.client)
+                }
+            }
             .onChange(of: store.state) { _, newState in
                 cloudSync.scheduleAutoSync(state: newState, userID: identity.id, client: auth.client)
             }
