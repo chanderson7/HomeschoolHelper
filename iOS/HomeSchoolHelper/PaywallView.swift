@@ -5,10 +5,20 @@ public struct PaywallView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var subscriptionManager = SubscriptionManager.shared
     
-    @State private var selectedProductID: String = SubscriptionManager.annualProductID
+    enum SelectedPlanTier {
+        case annual
+        case monthly
+    }
+
+    @State private var selectedPlan: SelectedPlanTier = .annual
     @State private var alertMessage: String?
     @State private var showAlert: Bool = false
     @State private var showManageSubscriptions: Bool = false
+    @State private var showDiagnostics: Bool = false
+
+    private var isAnnualSelected: Bool {
+        selectedPlan == .annual
+    }
 
     public init() {}
 
@@ -81,6 +91,13 @@ public struct PaywallView: View {
                             title: "ISBN Book Scanner",
                             subtitle: "Scan book barcodes to instantly populate titles and reading logs."
                         )
+
+                        proFeatureRow(
+                            icon: "sparkles",
+                            color: .teal,
+                            title: "1-Tap Auto-Rebalance",
+                            subtitle: "\"Life Happens\" smart rescheduling that flows lessons around sick days and breaks."
+                        )
                     }
                     .padding(16)
                     .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
@@ -91,34 +108,54 @@ public struct PaywallView: View {
                         if subscriptionManager.products.isEmpty {
                             // Fallback preview placeholders while products load or offline
                             planCard(
-                                productID: SubscriptionManager.annualProductID,
+                                isAnnual: true,
                                 title: "Annual Membership",
                                 price: "$39.99 / year",
                                 trialText: "Includes 7-day free trial",
                                 badge: "SAVE 33%",
-                                isSelected: selectedProductID == SubscriptionManager.annualProductID
+                                isSelected: selectedPlan == .annual
                             )
 
                             planCard(
-                                productID: SubscriptionManager.monthlyProductID,
+                                isAnnual: false,
                                 title: "Monthly Membership",
                                 price: "$4.99 / month",
                                 trialText: "Flexible month-to-month",
                                 badge: nil,
-                                isSelected: selectedProductID == SubscriptionManager.monthlyProductID
+                                isSelected: selectedPlan == .monthly
                             )
                         } else {
                             ForEach(subscriptionManager.products) { product in
-                                let isAnnual = product.id == SubscriptionManager.annualProductID
+                                let isAnnual = product.isAnnual
                                 planCard(
-                                    productID: product.id,
+                                    isAnnual: isAnnual,
                                     title: product.displayName,
                                     price: product.displayPrice + (isAnnual ? " / year" : " / month"),
                                     trialText: isAnnual ? "Includes 7-day free trial" : "Billed monthly",
                                     badge: isAnnual ? "BEST VALUE" : nil,
-                                    isSelected: selectedProductID == product.id
+                                    isSelected: isAnnual ? (selectedPlan == .annual) : (selectedPlan == .monthly)
                                 )
                             }
+                        }
+
+                        if subscriptionManager.isLoadingProducts {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text("Connecting to App Store…")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.top, 4)
+                        } else if subscriptionManager.products.isEmpty {
+                            Button {
+                                Task { await subscriptionManager.loadProducts() }
+                            } label: {
+                                Label("Retry App Store Connection", systemImage: "arrow.clockwise")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Sage.accent)
+                            }
+                            .padding(.top, 4)
                         }
                     }
                     .padding(.horizontal)
@@ -247,6 +284,16 @@ public struct PaywallView: View {
                             .accessibilityIdentifier("paywallPrivacyLink")
                         }
                         .foregroundStyle(Sage.accent)
+
+                        Button {
+                            showDiagnostics = true
+                        } label: {
+                            Label("StoreKit Diagnostics & TestFlight Setup", systemImage: "wrench.and.screwdriver")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.top, 4)
+                        .accessibilityIdentifier("paywallDiagnosticsButton")
                     }
                     .padding(.bottom, 24)
                 }
@@ -268,7 +315,15 @@ public struct PaywallView: View {
                 }
             }
             .manageSubscriptionsSheet(isPresented: $showManageSubscriptions)
+            .sheet(isPresented: $showDiagnostics) {
+                StoreKitDiagnosticsSheet()
+            }
             .alert("Subscription", isPresented: $showAlert) {
+                if subscriptionManager.products.isEmpty {
+                    Button("Diagnostics & TestFlight Setup") {
+                        showDiagnostics = true
+                    }
+                }
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(alertMessage ?? "")
@@ -277,6 +332,9 @@ public struct PaywallView: View {
                 if isPro {
                     dismiss()
                 }
+            }
+            .task {
+                await subscriptionManager.loadProducts()
             }
         }
     }
@@ -298,6 +356,7 @@ public struct PaywallView: View {
                 Text(title)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
+
                 Text(subtitle)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -308,7 +367,7 @@ public struct PaywallView: View {
     }
 
     private func planCard(
-        productID: String,
+        isAnnual: Bool,
         title: String,
         price: String,
         trialText: String,
@@ -316,7 +375,7 @@ public struct PaywallView: View {
         isSelected: Bool
     ) -> some View {
         Button {
-            selectedProductID = productID
+            selectedPlan = isAnnual ? .annual : .monthly
         } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
@@ -368,7 +427,7 @@ public struct PaywallView: View {
     // MARK: - Actions
 
     private var ctaButtonText: String {
-        if selectedProductID == SubscriptionManager.annualProductID {
+        if isAnnualSelected {
             return "Start 7-Day Free Trial"
         } else {
             return "Subscribe Now"
@@ -376,9 +435,21 @@ public struct PaywallView: View {
     }
 
     private func handlePurchase() async {
-        guard let product = subscriptionManager.products.first(where: { $0.id == selectedProductID }) else {
-            // If offline or StoreKit config not bundled in simulator, fallback to error alert
-            alertMessage = "Unable to connect to the App Store. Please verify your connection or try again."
+        if subscriptionManager.products.isEmpty {
+            await subscriptionManager.loadProducts()
+        }
+
+        let targetProduct: Product? = {
+            if isAnnualSelected {
+                return subscriptionManager.products.first(where: \.isAnnual) ?? subscriptionManager.products.first
+            } else {
+                return subscriptionManager.products.first(where: \.isMonthly) ?? subscriptionManager.products.first
+            }
+        }()
+
+        guard let product = targetProduct else {
+            let errorDetails = subscriptionManager.lastLoadError ?? "StoreKit returned no subscription products for this account."
+            alertMessage = "Unable to connect to the App Store.\n\n\(errorDetails)\n\nIn TestFlight, please ensure that:\n• Your sandbox Apple ID is active in device Settings → App Store.\n• The Paid Applications Agreement is accepted in App Store Connect (Agreements, Tax, and Banking).\n• In-App Purchases are configured in App Store Connect."
             showAlert = true
             return
         }

@@ -36,9 +36,9 @@ if [ ! -d "$APP_DIR" ]; then
     exit 1
 fi
 
-BUNDLE_ID=$(defaults read "$APP_DIR/Info.plist" CFBundleIdentifier 2>/dev/null || echo "com.andersonsites.ezhomeschool")
-VERSION=$(defaults read "$APP_DIR/Info.plist" CFBundleShortVersionString 2>/dev/null || echo "0.1.0")
-BUILD=$(defaults read "$APP_DIR/Info.plist" CFBundleVersion 2>/dev/null || echo "1")
+BUNDLE_ID=$(plutil -extract CFBundleIdentifier raw "$APP_DIR/Info.plist" 2>/dev/null || echo "com.andersonsites.ezhomeschool")
+VERSION=$(plutil -extract CFBundleShortVersionString raw "$APP_DIR/Info.plist" 2>/dev/null || echo "0.1.1")
+BUILD=$(plutil -extract CFBundleVersion raw "$APP_DIR/Info.plist" 2>/dev/null || echo "2")
 
 echo "  Bundle Identifier: $BUNDLE_ID"
 echo "  Marketing Version: $VERSION"

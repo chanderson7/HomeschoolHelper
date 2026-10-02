@@ -2,8 +2,6 @@ import SwiftUI
 import HomeschoolCore
 
 struct FamilyView: View {
-    @Environment(\.signedInIdentity) private var identity
-    @State private var showAccount = false
     @EnvironmentObject private var store: HomeschoolStore
     @State private var showAddStudent = false
     @State private var showPaywall = false
@@ -164,31 +162,8 @@ struct FamilyView: View {
                     }
                     .accessibilityIdentifier("addStudent")
                 }
-
-                Section("Your data & privacy") {
-                    if identity != nil {
-                        Button("Account & cloud backups") { showAccount = true }
-                            .accessibilityIdentifier("openAccount")
-                    }
-                    NavigationLink {
-                        SettingsView()
-                    } label: {
-                        Label("App Settings & Legal", systemImage: "gearshape")
-                    }
-                    .accessibilityIdentifier("openSettingsFromFamily")
-                    Label("Saved on this device", systemImage: "lock.shield.fill")
-                        .font(.headline)
-                        .foregroundStyle(Sage.accent)
-                    Text("Records are saved on this device and backed up automatically while cloud backup is enabled. Manage backup history from Account & cloud backups.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
             }
             .navigationTitle("Family")
-            .sheet(isPresented: $showAccount) {
-                if let identity { AccountView(identity: identity) }
-            }
-            .toolbar { SaveStatusToolbar() }
             .sheet(isPresented: $showAddStudent) { AddStudentView() }
             .sheet(isPresented: $showPaywall) { PaywallView() }
             .sheet(item: $editingStudent) { student in

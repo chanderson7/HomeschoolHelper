@@ -86,7 +86,16 @@ final class HomeschoolStore: ObservableObject {
     }
 
     @discardableResult
-    func addCourse(title: String, studentIDs: [UUID], lessonTitles: [String], startDay: String?, weekdays: Set<Int>, creditHours: Double? = nil, weight: Double? = nil) -> Bool {
+    func addCourse(
+        title: String,
+        studentIDs: [UUID],
+        lessonTitles: [String],
+        startDay: String?,
+        weekdays: Set<Int>,
+        creditHours: Double? = nil,
+        weight: Double? = nil,
+        gradeCategories: [(name: String, weight: Double)] = []
+    ) -> Bool {
         update("create lesson sequence") { state in
             let courseID = try state.addCourse(
                 title: title,
@@ -97,6 +106,9 @@ final class HomeschoolStore: ObservableObject {
             )
             if creditHours != nil || weight != nil {
                 try state.updateCourseCredits(id: courseID, creditHours: creditHours, weight: weight)
+            }
+            for cat in gradeCategories {
+                _ = try state.addGradeCategory(courseID: courseID, name: cat.name, weight: cat.weight)
             }
         }
     }
@@ -141,6 +153,16 @@ final class HomeschoolStore: ObservableObject {
         }
         return ok ? result : nil
     }
+
+    @discardableResult
+    func rebalanceSchedule(_ request: ScheduleRebalanceRequest) -> ScheduleRebalanceResult? {
+        var result: ScheduleRebalanceResult?
+        let ok = update("auto-rebalance schedule") { state in
+            result = try state.rebalanceSchedule(request: request)
+        }
+        return ok ? result : nil
+    }
+
 
     @discardableResult
     func setSelectedStateCode(_ code: String?) -> Bool {

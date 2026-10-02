@@ -11,6 +11,7 @@ struct TodayView: View {
     @State private var showNewStudent = false
     @State private var showNewCourse = false
     @State private var showPacedReschedule = false
+    @State private var showAutoRebalance = false
     @State private var animateArt = false
     @State private var sunGlowPulse = false
 
@@ -131,11 +132,19 @@ struct TodayView: View {
             .background(Sage.background.ignoresSafeArea())
             .navigationTitle("Today")
             .toolbar {
-                SaveStatusToolbar()
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showAutoRebalance = true
+                    } label: {
+                        Label("Rebalance", systemImage: "sparkles")
+                    }
+                    .accessibilityIdentifier("todayRebalanceButton")
+                }
             }
             .sheet(isPresented: $showNewStudent) { AddStudentView() }
             .sheet(isPresented: $showNewCourse) { SequenceBuilderView() }
             .sheet(isPresented: $showPacedReschedule) { SmartPacedRescheduleSheet(studentID: studentID) }
+            .sheet(isPresented: $showAutoRebalance) { ScheduleRebalanceSheet(initialStudentID: studentID) }
             .onAppear {
                 withAnimation(.spring(response: 0.7, dampingFraction: 0.75)) {
                     animateArt = true
@@ -209,7 +218,7 @@ struct TodayView: View {
                     }
                 },
                 onPacedPush: {
-                    showPacedReschedule = true
+                    showAutoRebalance = true
                 }
             )
         }
@@ -338,98 +347,348 @@ private struct SmartPacedRescheduleSheet: View {
     @State private var weekdays: Set<Int> = [2, 3, 4, 5, 6]
     @State private var rescheduleResult: PacedRescheduleResult?
 
+    private var overdueAssignments: [Assignment] {
+        store.overdueAssignments(asOf: SchoolDate.today, studentID: studentID)
+    }
+
     private var overdueCount: Int {
-        store.overdueAssignments(asOf: SchoolDate.today, studentID: studentID).count
+        overdueAssignments.count
+    }
+
+    private struct OverdueCourseItem: Identifiable {
+        let id: UUID
+        let name: String
+        let count: Int
+    }
+
+    private var overdueCoursesSummary: [OverdueCourseItem] {
+        let overdue = overdueAssignments
+        let lessonMap = Dictionary(uniqueKeysWithValues: store.state.lessons.map { ($0.id, $0) })
+        var counts: [UUID: Int] = [:]
+        for a in overdue {
+            if let courseID = lessonMap[a.lessonID]?.courseID {
+                counts[courseID, default: 0] += 1
+            }
+        }
+        var items: [OverdueCourseItem] = []
+        for (courseID, count) in counts {
+            if let course = store.state.courses.first(where: { $0.id == courseID }) {
+                items.append(OverdueCourseItem(id: courseID, name: course.title, count: count))
+            }
+        }
+        items.sort { $0.name < $1.name }
+        return items
+    }
+
+    private var maxOverdueInAnyCourse: Int {
+        overdueCoursesSummary.map(\.count).max() ?? 0
+    }
+
+    /// Cannot select more school days than classes to make up
+    private var maxDaysAllowed: Int {
+        max(1, min(overdueCount, 7))
+    }
+
+    /// Minimum days needed so courses with multiple overdue lessons don't double up
+    private var minDaysNeeded: Int {
+        max(1, min(maxOverdueInAnyCourse, maxDaysAllowed))
     }
 
     private let weekdayOptions = [
         (2, "Mon"), (3, "Tue"), (4, "Wed"), (5, "Thu"), (6, "Fri"), (7, "Sat"), (1, "Sun")
     ]
 
+    private var activeDaysDescription: String {
+        let names = weekdayOptions
+            .filter { weekdays.contains($0.0) }
+            .map { $0.1 }
+        return names.isEmpty ? "None" : names.joined(separator: ", ")
+    }
+
+    private func clampWeekdaysToAllowed() {
+        guard overdueCount > 0 else { return }
+        if weekdays.count > maxDaysAllowed {
+            let standardOrder = [2, 3, 4, 5, 6, 7, 1]
+            let existingInOrder = standardOrder.filter { weekdays.contains($0) }
+            weekdays = Set(existingInOrder.prefix(maxDaysAllowed))
+        } else if weekdays.count < minDaysNeeded {
+            let standardOrder = [2, 3, 4, 5, 6, 7, 1]
+            var current = weekdays
+            for day in standardOrder {
+                if current.count >= minDaysNeeded { break }
+                current.insert(day)
+            }
+            weekdays = current
+        }
+    }
+
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Label("Smart Paced Rescheduling", systemImage: "sparkles")
-                            .font(.headline)
-                            .foregroundStyle(Sage.accent)
-                        Text("Rather than overloading one day, lessons are spaced out sequentially across upcoming school days without double-booking subjects.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 4)
-                }
-
-                Section("Pacing Options") {
-                    DatePicker(
-                        "Start Date",
-                        selection: Binding(
-                            get: { SchoolDate.date(startDay) ?? Date() },
-                            set: { startDay = SchoolDate.string($0) }
-                        ),
-                        displayedComponents: .date
-                    )
-                    .accessibilityIdentifier("pacedStartDatePicker")
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Active School Days")
-                            .font(.subheadline.weight(.medium))
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 58), spacing: 8)], spacing: 8) {
-                            ForEach(weekdayOptions, id: \.0) { option in
-                                Button(option.1) {
-                                    if weekdays.contains(option.0) {
-                                        if weekdays.count > 1 { weekdays.remove(option.0) }
-                                    } else {
-                                        weekdays.insert(option.0)
-                                    }
-                                }
-                                .buttonStyle(.bordered)
-                                .tint(weekdays.contains(option.0) ? Sage.accent : .gray)
-                                .accessibilityLabel("\(option.1) pacing day")
-                            }
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-
-                Section("Reschedule Impact") {
-                    LabeledContent("Overdue Lessons Found", value: "\(overdueCount)")
-                    if let result = rescheduleResult {
-                        LabeledContent("Lessons Rescheduled", value: "\(result.rescheduledCount)")
-                        LabeledContent("Subjects Paced", value: "\(result.affectedCoursesCount)")
-                        if let newDay = result.newCompletionDay {
-                            LabeledContent("Projected Syllabus Finish", value: SchoolDate.short(newDay))
-                        }
-                    }
-                }
-
-                Section {
-                    Button {
-                        applyPacedReschedule()
-                    } label: {
-                        HStack {
-                            Spacer()
-                            Label("Apply Smart Pacing", systemImage: "calendar.badge.clock")
-                                .font(.headline)
-                            Spacer()
-                        }
-                        .padding(.vertical, 4)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Sage.accent)
-                    .disabled(overdueCount == 0 || weekdays.isEmpty)
-                    .accessibilityIdentifier("confirmSmartPacedRescheduleButton")
+            Group {
+                if let result = rescheduleResult {
+                    confirmationView(result: result)
+                } else {
+                    rescheduleForm
                 }
             }
-            .navigationTitle("Smart Reschedule")
+            .navigationTitle(rescheduleResult == nil ? "Smart Reschedule" : "Reschedule Complete")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", action: dismiss.callAsFunction)
+                    Button(rescheduleResult == nil ? "Cancel" : "Done", action: dismiss.callAsFunction)
+                }
+            }
+            .onAppear {
+                clampWeekdaysToAllowed()
+            }
+        }
+    }
+
+    private var rescheduleForm: some View {
+        Form {
+            Section {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("How Smart Pacing Works", systemImage: "sparkles")
+                        .font(.headline)
+                        .foregroundStyle(Sage.accent)
+                    Text("Overdue lessons from past dates are moved forward sequentially starting on your chosen start date across active school days. Each subject gets at most one lesson per day so your student stays on track without feeling overwhelmed.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 4)
+            }
+
+            Section("Pacing Options") {
+                DatePicker(
+                    "Start Date",
+                    selection: Binding(
+                        get: { SchoolDate.date(startDay) ?? Date() },
+                        set: {
+                            startDay = SchoolDate.string($0)
+                            clampWeekdaysToAllowed()
+                        }
+                    ),
+                    displayedComponents: .date
+                )
+                .accessibilityIdentifier("pacedStartDatePicker")
+
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Active School Days")
+                            .font(.subheadline.weight(.medium))
+                        Spacer()
+                        if overdueCount > 0 {
+                            Text("\(weekdays.count) of \(maxDaysAllowed) selected")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(weekdays.count == maxDaysAllowed ? Sage.accent : .secondary)
+                        }
+                    }
+
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 58), spacing: 8)], spacing: 8) {
+                        ForEach(weekdayOptions, id: \.0) { option in
+                            let isSelected = weekdays.contains(option.0)
+                            let canSelect = isSelected || weekdays.count < maxDaysAllowed
+                            Button(option.1) {
+                                if isSelected {
+                                    if weekdays.count > minDaysNeeded {
+                                        weekdays.remove(option.0)
+                                    }
+                                } else {
+                                    if weekdays.count < maxDaysAllowed {
+                                        weekdays.insert(option.0)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(isSelected ? Sage.accent : .gray)
+                            .disabled(!canSelect)
+                            .opacity(!canSelect ? 0.35 : 1.0)
+                            .accessibilityLabel("\(option.1) pacing day")
+                        }
+                    }
+
+                    if overdueCount > 0 {
+                        if weekdays.count == maxDaysAllowed && maxDaysAllowed < 7 {
+                            Text("Selected all \(maxDaysAllowed) allowed \(maxDaysAllowed == 1 ? "day" : "days") for your \(overdueCount) overdue \(overdueCount == 1 ? "class" : "classes"). Deselect a day to choose another.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        } else if minDaysNeeded > 1 && weekdays.count == minDaysNeeded {
+                            Text("A subject has \(minDaysNeeded) overdue lessons, requiring at least \(minDaysNeeded) school days so lessons don't double up.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("Choose up to \(maxDaysAllowed) \(maxDaysAllowed == 1 ? "school day" : "school days") to spread out your \(overdueCount) overdue \(overdueCount == 1 ? "class" : "classes").")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+
+            Section("Overdue Lessons to Reschedule") {
+                LabeledContent("Total Overdue Lessons", value: "\(overdueCount)")
+                    .font(.body.weight(.medium))
+
+                if overdueCoursesSummary.isEmpty {
+                    Text("No overdue lessons found for this learner.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(overdueCoursesSummary) { item in
+                        HStack {
+                            Text(item.name)
+                            Spacer()
+                            Text("\(item.count) \(item.count == 1 ? "lesson" : "lessons")")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+
+            Section {
+                Button {
+                    applyPacedReschedule()
+                } label: {
+                    HStack {
+                        Spacer()
+                        Label("Apply Smart Pacing", systemImage: "calendar.badge.clock")
+                            .font(.headline)
+                        Spacer()
+                    }
+                    .padding(.vertical, 4)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Sage.accent)
+                .disabled(overdueCount == 0 || weekdays.isEmpty)
+                .accessibilityIdentifier("confirmSmartPacedRescheduleButton")
+            } footer: {
+                if overdueCount > 0 && !weekdays.isEmpty {
+                    Text("Lessons will be distributed starting \(SchoolDate.short(startDay)) on \(activeDaysDescription).")
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func confirmationView(result: PacedRescheduleResult) -> some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                ZStack {
+                    Circle()
+                        .fill(Sage.accent.opacity(0.12))
+                        .frame(width: 80, height: 80)
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 48))
+                        .foregroundStyle(Sage.accent)
+                }
+                .padding(.top, 24)
+
+                VStack(spacing: 8) {
+                    Text("Smart Pacing Applied!")
+                        .font(.title2.weight(.bold))
+                    Text("Overdue lessons have been placed across your chosen make-up days. Upcoming lessons were smoothly shifted forward so your student doesn't double up on any subject.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 16)
+                }
+
+                VStack(spacing: 12) {
+                    HStack {
+                        Label("Overdue Lessons Caught Up", systemImage: "checkmark.circle.fill")
+                        Spacer()
+                        let caughtUp = result.overdueRescheduledCount > 0 ? result.overdueRescheduledCount : result.rescheduledCount
+                        Text("\(caughtUp)")
+                            .font(.headline)
+                            .foregroundStyle(Sage.accent)
+                    }
+                    if result.futureShiftedCount > 0 {
+                        Divider()
+                        HStack {
+                            Label("Upcoming Lessons Adjusted", systemImage: "arrow.forward.circle")
+                            Spacer()
+                            Text("\(result.futureShiftedCount) shifted forward")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Divider()
+                    HStack {
+                        Label("Subjects Balanced", systemImage: "square.stack.3d.up")
+                        Spacer()
+                        Text("\(result.affectedCoursesCount)")
+                            .font(.headline)
+                    }
+                    Divider()
+                    HStack {
+                        Label("Starting From", systemImage: "calendar")
+                        Spacer()
+                        Text(SchoolDate.short(startDay))
+                            .font(.subheadline.weight(.medium))
+                    }
+                    Divider()
+                    HStack {
+                        Label("Scheduled Days", systemImage: "clock")
+                        Spacer()
+                        Text(activeDaysDescription)
+                            .font(.subheadline.weight(.medium))
+                    }
+                    if let newDay = result.newCompletionDay {
+                        Divider()
+                        HStack {
+                            Label("Projected Finish", systemImage: "flag.checkered")
+                            Spacer()
+                            Text(SchoolDate.short(newDay))
+                                .font(.headline)
+                                .foregroundStyle(Sage.accent)
+                        }
+                    }
+                }
+                .padding()
+                .background(Sage.soft)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Sage.accent.opacity(0.15), lineWidth: 1)
+                )
+                .padding(.horizontal)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("What happens next?", systemImage: "info.circle")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Sage.accent)
+                    Text("Your daily agenda on Today and your curriculum calendar in Plan now reflect your balanced schedule. Lessons will appear on each assigned date.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
+                .background(Color.secondary.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .padding(.horizontal)
+
+                Button {
+                    dismiss()
+                } label: {
+                    HStack {
+                        Spacer()
+                        Text("Done")
+                            .font(.headline)
+                        Spacer()
+                    }
+                    .padding(.vertical, 6)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Sage.accent)
+                .padding(.horizontal)
+                .padding(.top, 8)
+                .accessibilityIdentifier("dismissSmartPacedConfirmationButton")
+            }
+            .padding(.bottom, 32)
+        }
+        .background(Sage.background.ignoresSafeArea())
     }
 
     private func applyPacedReschedule() {
@@ -438,8 +697,9 @@ private struct SmartPacedRescheduleSheet: View {
             studentID: studentID,
             weekdays: weekdays
         ) {
-            rescheduleResult = result
-            dismiss()
+            withAnimation(.easeInOut) {
+                rescheduleResult = result
+            }
         }
     }
 }
@@ -448,7 +708,8 @@ private struct TodayAttendanceCard: View {
     @EnvironmentObject private var store: HomeschoolStore
     let studentID: UUID?
     let selectedDay: String
-    @State private var hours: Double = 3.0
+    @State private var selectedHours: Int = 4
+    @State private var selectedMinutes: Int = 0
     @State private var justConfirmed = false
 
     private var activeStudents: [Student] {
@@ -464,6 +725,15 @@ private struct TodayAttendanceCard: View {
 
     private var totalConfirmedToday: Int {
         activeStudents.compactMap { store.attendanceEntry(for: $0.id, day: selectedDay)?.minutes }.reduce(0, +)
+    }
+
+    private var totalMinutes: Int {
+        (selectedHours * 60) + selectedMinutes
+    }
+
+    private var formattedDuration: String {
+        let h = Double(totalMinutes) / 60.0
+        return "\(String(format: "%.1f", h)) hrs (\(totalMinutes)m)"
     }
 
     var body: some View {
@@ -486,7 +756,7 @@ private struct TodayAttendanceCard: View {
                     }
                     .padding(.vertical, 4)
                 } else {
-                    HStack {
+                    HStack(alignment: .center) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Wrap Up Today's School")
                                 .font(.headline.weight(.bold))
@@ -495,39 +765,67 @@ private struct TodayAttendanceCard: View {
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
+                        HStack(spacing: 5) {
+                            Image(systemName: "clock.fill")
+                                .font(.caption)
+                                .foregroundStyle(Sage.accent)
+                            Text(formattedDuration)
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(Sage.accent)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Sage.accent.opacity(0.12), in: Capsule())
                     }
 
-                    HStack(spacing: 14) {
-                        Stepper(value: $hours, in: 0.5...12.0, step: 0.5) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "clock")
-                                    .foregroundStyle(Sage.accent)
-                                Text("\(String(format: "%.1f", hours)) hrs (\(Int(hours * 60))m)")
-                                    .font(.subheadline.weight(.bold))
+                    // Scroll Wheel GUI
+                    HStack(spacing: 0) {
+                        Picker("Hours", selection: $selectedHours) {
+                            ForEach(0...12, id: \.self) { h in
+                                Text("\(h) \(h == 1 ? "hr" : "hrs")").tag(h)
                             }
                         }
+                        .pickerStyle(.wheel)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
 
-                        Button {
-                            #if os(iOS)
-                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                            #endif
-                            let minutes = Int(hours * 60)
-                            for student in unrecordedStudents {
-                                _ = store.confirmAttendance(studentID: student.id, day: selectedDay, minutes: minutes)
+                        Picker("Minutes", selection: $selectedMinutes) {
+                            ForEach(Array(stride(from: 0, to: 60, by: 5)), id: \.self) { m in
+                                Text("\(m) min").tag(m)
                             }
-                            withAnimation {
-                                justConfirmed = true
-                            }
-                        } label: {
-                            Text("Confirm")
+                        }
+                        .pickerStyle(.wheel)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
+                    }
+                    .frame(height: 105)
+                    .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+
+                    Button {
+                        #if os(iOS)
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        #endif
+                        guard totalMinutes > 0 else { return }
+                        for student in unrecordedStudents {
+                            _ = store.confirmAttendance(studentID: student.id, day: selectedDay, minutes: totalMinutes)
+                        }
+                        withAnimation {
+                            justConfirmed = true
+                        }
+                    } label: {
+                        HStack {
+                            Spacer()
+                            Image(systemName: "checkmark.circle.fill")
+                            Text("Confirm Attendance (\(formattedDuration))")
                                 .font(.subheadline.bold())
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-                                .background(Sage.accent, in: RoundedRectangle(cornerRadius: 12))
-                                .foregroundStyle(.white)
+                            Spacer()
                         }
-                        .accessibilityIdentifier("quickConfirmAttendance")
+                        .padding(.vertical, 12)
+                        .background(totalMinutes > 0 ? Sage.accent : Color.gray.opacity(0.5), in: RoundedRectangle(cornerRadius: 14))
+                        .foregroundStyle(.white)
                     }
+                    .disabled(totalMinutes == 0)
+                    .accessibilityIdentifier("quickConfirmAttendance")
                 }
             }
             .padding(16)

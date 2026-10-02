@@ -512,7 +512,106 @@ final class HomeschoolStoreTests: XCTestCase {
             XCTAssertNil(store.state.assignments[0].categoryID)
         }
     }
+
+    func testStoreAddCourseWithInitialGradeCategoriesCreatesThemAtomically() async {
+        let repository = InMemorySchoolRepository(state: SchoolState())
+
+        await MainActor.run {
+            let store = HomeschoolStore(repository: repository)
+            _ = store.addStudent(name: "Sophia", gradeLevel: "11")
+            let student = store.state.students[0]
+
+            let added = store.addCourse(
+                title: "Honors Chemistry",
+                studentIDs: [student.id],
+                lessonTitles: ["Final Exam", "Midterm Quiz", "Titration Lab"],
+                startDay: nil,
+                weekdays: [2, 4],
+                creditHours: 1.0,
+                weight: 4.5,
+                gradeCategories: [
+                    ("Exams", 0.50),
+                    ("Quizzes", 0.30),
+                    ("Labs", 0.20)
+                ]
+            )
+            XCTAssertTrue(added)
+            XCTAssertEqual(store.state.courses.count, 1)
+            let course = store.state.courses[0]
+
+            let categories = store.gradeCategories(for: course.id)
+            XCTAssertEqual(categories.count, 3)
+
+            guard let examsCat = categories.first(where: { $0.name == "Exams" }),
+                  let quizzesCat = categories.first(where: { $0.name == "Quizzes" }),
+                  let labsCat = categories.first(where: { $0.name == "Labs" }) else {
+                XCTFail("Missing expected categories")
+                return
+            }
+            XCTAssertEqual(examsCat.weight, 0.50)
+            XCTAssertEqual(quizzesCat.weight, 0.30)
+            XCTAssertEqual(labsCat.weight, 0.20)
+
+            // Assign lessons to their respective categories
+            let examAsgn = store.state.assignments.first { asgn in
+                store.lesson(for: asgn.lessonID)?.title == "Final Exam"
+            }!
+            let quizAsgn = store.state.assignments.first { asgn in
+                store.lesson(for: asgn.lessonID)?.title == "Midterm Quiz"
+            }!
+            let labAsgn = store.state.assignments.first { asgn in
+                store.lesson(for: asgn.lessonID)?.title == "Titration Lab"
+            }!
+
+            _ = store.setAssignmentCategory(id: examAsgn.id, categoryID: examsCat.id)
+            _ = store.setAssignmentCategory(id: quizAsgn.id, categoryID: quizzesCat.id)
+            _ = store.setAssignmentCategory(id: labAsgn.id, categoryID: labsCat.id)
+
+            // Score them: Exam 90, Quiz 80, Lab 100
+            _ = store.setAssignmentGrade(id: examAsgn.id, grade: 90.0)
+            _ = store.setAssignmentGrade(id: quizAsgn.id, grade: 80.0)
+            _ = store.setAssignmentGrade(id: labAsgn.id, grade: 100.0)
+
+            // Expected weighted grade: (90 * 0.5) + (80 * 0.3) + (100 * 0.2) = 45 + 24 + 20 = 89.0
+            let courseAvg = store.courseGrade(for: student.id, courseID: course.id)
+            XCTAssertNotNil(courseAvg)
+            XCTAssertEqual(courseAvg!, 89.0, accuracy: 0.001)
+        }
+    }
+
+    func testStoreRebalanceScheduleUpdatesStateAndReturnsResult() async throws {
+        var base = SchoolState()
+        let studentID = try base.addStudent(name: "Oliver", gradeLevel: "4")
+        let courseID = try base.addCourse(
+            title: "Art 4",
+            studentIDs: [studentID],
+            lessonTitles: ["L1", "L2", "L3"],
+            startDay: "2026-10-05",
+            weekdays: [2, 3, 4, 5, 6]
+        )
+        let repo = InMemorySchoolRepository(state: base)
+
+        await MainActor.run {
+            let store = HomeschoolStore(repository: repo)
+            let request = ScheduleRebalanceRequest(
+                studentID: studentID,
+                courseID: courseID,
+                strategy: .pushByDays,
+                startDay: "2026-10-05",
+                pushDaysCount: 2,
+                weekdays: [2, 3, 4, 5, 6]
+            )
+            let result = store.rebalanceSchedule(request)
+            XCTAssertNotNil(result)
+            XCTAssertEqual(result?.rescheduledCount, 3)
+            XCTAssertEqual(result?.affectedCoursesCount, 1)
+
+            let updatedDay = store.state.assignments.first?.scheduledDay
+            XCTAssertEqual(updatedDay, "2026-10-07")
+        }
+    }
 }
+
 
 private enum FakeRepositoryError: LocalizedError, Sendable {
     case loadFailed

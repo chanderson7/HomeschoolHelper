@@ -93,11 +93,10 @@ final class HomeSchoolHelperUITests: XCTestCase {
         XCTAssertEqual(app.buttons["assignment-Ben-Lesson One"].label, "Lesson One for Ben, Planned")
     }
 
-    func testLargeTextDarkModeAccessibilitySmoke() throws {
+    func testLargeTextAccessibilitySmoke() throws {
         app.terminate()
         app.launchEnvironment["HSH_UI_TEST_ID"] = UUID().uuidString
         app.launchEnvironment["HSH_UI_TEST_AUTH_MODE"] = "authenticated"
-        app.launchEnvironment["HSH_UI_TEST_DARK_MODE"] = "1"
         app.launchEnvironment["HSH_UI_TEST_LARGE_TEXT"] = "1"
         app.launch()
 
@@ -107,21 +106,21 @@ final class HomeSchoolHelperUITests: XCTestCase {
         XCTAssertTrue(app.tabBars.buttons["Family"].exists)
         XCTAssertTrue(app.tabBars.buttons["Settings"].exists)
         try app.performAccessibilityAudit(for: .sufficientElementDescription)
-        attachScreenshot(named: "large-text-dark-today")
+        attachScreenshot(named: "large-text-today")
 
         app.tabBars.buttons["Plan"].tap()
-        attachScreenshot(named: "large-text-dark-plan")
+        attachScreenshot(named: "large-text-plan")
         app.tabBars.buttons["Records"].tap()
-        attachScreenshot(named: "large-text-dark-records")
+        attachScreenshot(named: "large-text-records")
 
         app.tabBars.buttons["Family"].tap()
-        attachScreenshot(named: "large-text-dark-family")
+        attachScreenshot(named: "large-text-family")
         reveal(app.buttons["addStudent"])
         addLearner(name: "Rae", grade: "5th Grade")
         reveal(app.staticTexts["Rae"], direction: .down)
 
         app.tabBars.buttons["Settings"].tap()
-        attachScreenshot(named: "large-text-dark-settings")
+        attachScreenshot(named: "large-text-settings")
     }
 
     func testSettingsPageAndLegalLinks() throws {
@@ -207,15 +206,24 @@ final class HomeSchoolHelperUITests: XCTestCase {
         app.tabBars.buttons["Plan"].tap()
         tap("addCourse", in: app.buttons)
         enter("Shared Math", into: app.textFields["courseTitle"])
+        if app.buttons["builderTab-1"].exists {
+            tap("builderTab-1", in: app.buttons) // Schedule
+        }
+        setSwitch("datedLessonSchedule", enabled: false)
+        if app.buttons["builderTab-2"].exists {
+            tap("builderTab-2", in: app.buttons) // Lessons
+        }
         enter("Lesson One", into: app.textFields["lessonTitle-1"])
         tap("addLessonDraft", in: app.buttons)
         enter("Lesson Two", into: app.textFields["lessonTitle-2"])
         if app.keyboards.buttons["Return"].exists {
             app.keyboards.buttons["Return"].tap()
         }
+        if app.buttons["builderTab-3"].exists {
+            tap("builderTab-3", in: app.buttons) // Learners
+        }
         setSwitch("courseStudent-Ada", enabled: true)
         setSwitch("courseStudent-Ben", enabled: true)
-        setSwitch("datedLessonSchedule", enabled: false)
         tap("saveCourse", in: app.buttons)
         let saved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: app.buttons["saveCourse"])
         XCTAssertEqual(XCTWaiter.wait(for: [saved], timeout: 3), .completed, "Course form did not save")

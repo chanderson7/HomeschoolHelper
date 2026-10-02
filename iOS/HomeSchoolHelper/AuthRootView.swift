@@ -5,22 +5,44 @@ import HomeschoolAuth
 struct AuthRootView: View {
     @EnvironmentObject private var auth: AuthStore
     @Environment(\.scenePhase) private var scenePhase
+    @State private var splashCompleted = false
 
     var body: some View {
-        Group {
+        ZStack {
             #if DEBUG
             if ProcessInfo.processInfo.environment["HSH_UI_TEST_AUTH_MODE"] == "authenticated",
                let raw = ProcessInfo.processInfo.environment["HSH_UI_TEST_ID"], UUID(uuidString: raw) != nil {
                 // Explicit UI fixture only: no backend/session or real household access.
                 UITestSchoolView()
+            } else if !splashCompleted && ProcessInfo.processInfo.environment["HSH_UI_TEST_ID"] == nil {
+                SplashScreenView()
+                    .transition(.opacity)
             } else {
                 protectedContent
             }
             #else
-            protectedContent
+            if !splashCompleted {
+                SplashScreenView()
+                    .transition(.opacity)
+            } else {
+                protectedContent
+            }
             #endif
         }
         .task { await auth.start() }
+        .task {
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["HSH_UI_TEST_ID"] != nil {
+                splashCompleted = true
+                return
+            }
+            #endif
+            // Guarantee at least 3 seconds of splash branding
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            withAnimation(.easeInOut(duration: 0.45)) {
+                splashCompleted = true
+            }
+        }
         .onOpenURL { url in Task { await auth.handleCallback(url) } }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await auth.refreshSession() } }
@@ -30,7 +52,7 @@ struct AuthRootView: View {
     @ViewBuilder private var protectedContent: some View {
         switch auth.phase {
         case .loading:
-            ProgressView("Checking your account…").accessibilityIdentifier("authLoading")
+            SplashScreenView()
         case .signedOut:
             LoginView()
         case .passwordRecovery:

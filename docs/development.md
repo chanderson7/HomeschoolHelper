@@ -10,9 +10,19 @@ The `HomeschoolCore` package uses Swift tools version 5.9 and can be tested sepa
 sh scripts/test-core.sh
 sh scripts/build-ios.sh
 sh scripts/test-ui.sh
+sh scripts/deploy-testflight.sh
 ```
 
 The build script uses a generic iOS Simulator destination, disables signing for that build, and writes derived data under ignored `.build/xcode/`. Core tests use unique temporary directories for persistence fixtures; they do not touch the app's household records.
+
+To automatically validate tests, build the release archive, and push to TestFlight:
+```sh
+sh scripts/deploy-testflight.sh
+```
+Or to open directly in Xcode Organizer after automated test validation:
+```sh
+sh scripts/deploy-testflight.sh --open-organizer
+```
 
 ## GitHub verification
 
@@ -22,7 +32,7 @@ No signing credentials or repository write permissions are required. Job timeout
 
 ## Automated UI coverage
 
-The UI suite creates learners and shared lessons through real forms, verifies independent completion and explicit attendance, corrects attendance without duplicating learner-days, records retrospective learning, and relaunches the app to verify persistence. A second test exercises dark appearance and accessibility-sized text, checks element descriptions and captures each tab. This is limited automated accessibility coverage, not a full VoiceOver or visual-layout certification.
+The UI suite creates learners and shared lessons through real forms, verifies independent completion and explicit attendance, corrects attendance without duplicating learner-days, records retrospective learning, and relaunches the app to verify persistence. A second test exercises accessibility-sized text, checks element descriptions and captures each tab. This is limited automated accessibility coverage, not a full VoiceOver or visual-layout certification.
 
 Each test supplies a fresh UUID through the Debug-only `HSH_UI_TEST_ID` environment variable. Storage lives under a separate `HomeSchoolHelperUITests/<UUID>` Application Support directory. Relaunch uses the same ID without resetting data. Tests never delete or overwrite the normal household. Release builds ignore these test settings.
 

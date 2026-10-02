@@ -13,6 +13,7 @@ private enum RecordsActiveSheet: Identifiable {
     case academicYears
     case export
     case exportReportCard
+    case exportTranscript
     case portfolio
     case readingLog
     case editActivity(LearningActivity)
@@ -24,6 +25,7 @@ private enum RecordsActiveSheet: Identifiable {
         case .academicYears: return "academicYears"
         case .export: return "export"
         case .exportReportCard: return "exportReportCard"
+        case .exportTranscript: return "exportTranscript"
         case .portfolio: return "portfolio"
         case .readingLog: return "readingLog"
         case .editActivity(let activity): return "editActivity-\(activity.id.uuidString)"
@@ -66,8 +68,9 @@ struct RecordsView: View {
         NavigationStack {
             List {
                 complianceSection
-                reportsSection
+                academicRecordsSection
                 learningRecordsSection
+                reportsSection
                 recentActivitySection
             }
             .navigationTitle("Records")
@@ -80,7 +83,6 @@ struct RecordsView: View {
                     }
                     .accessibilityIdentifier("exportToolbarButton")
                 }
-                SaveStatusToolbar()
             }
             .sheet(item: $activeSheet) { sheet in
                 sheetView(for: sheet)
@@ -111,6 +113,12 @@ struct RecordsView: View {
             ExportRecordsSheet(initialYear: currentYear)
         case .exportReportCard:
             ExportRecordsSheet(initialYear: currentYear, initialReportType: .reportCard)
+        case .exportTranscript:
+            let highSchoolStudent = store.state.students.first { student in
+                let g = student.gradeLevel.lowercased()
+                return g.contains("9") || g.contains("10") || g.contains("11") || g.contains("12") || g.contains("freshman") || g.contains("sophomore") || g.contains("junior") || g.contains("senior")
+            } ?? (store.state.students.count == 1 ? store.state.students.first : nil)
+            ExportRecordsSheet(initialYear: currentYear, initialReportType: .transcript, initialStudentID: highSchoolStudent?.id)
         case .portfolio:
             PortfolioView()
         case .readingLog:
@@ -298,8 +306,73 @@ struct RecordsView: View {
     }
 
     @ViewBuilder
+    private var academicRecordsSection: some View {
+        Section("Academic & Grade Records") {
+            Button {
+                #if canImport(UIKit)
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                #endif
+                activeSheet = .exportReportCard
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "chart.bar.doc.horizontal.fill")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.indigo)
+                        .frame(width: 36, height: 36)
+                        .background(Color.indigo.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Academic report cards")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                        Text("Quarterly/semester grades, category weights & GPA (K–12)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.vertical, 4)
+            }
+            .accessibilityIdentifier("openReportCard")
+
+            Button {
+                #if canImport(UIKit)
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                #endif
+                activeSheet = .exportTranscript
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "graduationcap.fill")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Sage.accent)
+                        .frame(width: 36, height: 36)
+                        .background(Sage.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Official High School Transcript")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                        Text("Carnegie credits, GPA, coursework record & attestation (Grades 9–12)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.vertical, 4)
+            }
+            .accessibilityIdentifier("openTranscript")
+        }
+    }
+
+    @ViewBuilder
     private var reportsSection: some View {
-        Section("Official reports & exports") {
+        Section("Official reports & compliance") {
             Button {
                 #if canImport(UIKit)
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -364,7 +437,7 @@ struct RecordsView: View {
 
     @ViewBuilder
     private var learningRecordsSection: some View {
-        Section("Learning records") {
+        Section("Learning records & logs") {
             Button {
                 #if canImport(UIKit)
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -484,36 +557,6 @@ struct RecordsView: View {
                 .padding(.vertical, 4)
             }
             .accessibilityIdentifier("openPortfolio")
-
-            Button {
-                #if canImport(UIKit)
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                #endif
-                activeSheet = .exportReportCard
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "chart.bar.doc.horizontal.fill")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(Color.indigo)
-                        .frame(width: 36, height: 36)
-                        .background(Color.indigo.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Academic report cards")
-                            .font(.headline.weight(.semibold))
-                            .foregroundStyle(.primary)
-                        Text("Quarterly/semester grades, category weights & GPA")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.tertiary)
-                }
-                .padding(.vertical, 4)
-            }
-            .accessibilityIdentifier("openReportCard")
         }
     }
 
@@ -1117,10 +1160,11 @@ private struct ExportRecordsSheet: View {
     @State private var exportError: String?
     @State private var showPaywall: Bool = false
 
-    init(initialYear: AcademicYear, initialReportType: ReportType = .attendance) {
+    init(initialYear: AcademicYear, initialReportType: ReportType = .attendance, initialStudentID: UUID? = nil) {
         self.initialYear = initialYear
         self.initialReportType = initialReportType
         _reportType = State(initialValue: initialReportType)
+        _selectedStudentID = State(initialValue: initialStudentID)
     }
 
     private var activeYear: AcademicYear {
@@ -1234,22 +1278,26 @@ private struct ExportRecordsSheet: View {
 
                 if let file = exportedFile {
                     Section {
-                        if reportType == .reportCard && !SubscriptionManager.shared.isPro {
+                        let isGatedReport = (reportType == .reportCard || reportType == .transcript)
+                        if isGatedReport && !SubscriptionManager.shared.isPro {
                             VStack(spacing: 8) {
                                 Button {
                                     showPaywall = true
                                 } label: {
                                     HStack {
                                         Spacer()
-                                        Label("Unlock Official Report Card with Pro", systemImage: "sparkles")
-                                            .font(.headline)
+                                        Label(
+                                            reportType == .transcript ? "Unlock Official Transcript with Pro" : "Unlock Official Report Card with Pro",
+                                            systemImage: "sparkles"
+                                        )
+                                        .font(.headline)
                                         Spacer()
                                     }
                                     .padding(.vertical, 4)
                                 }
                                 .buttonStyle(.borderedProminent)
                                 .tint(Sage.accent)
-                                .accessibilityIdentifier("unlockReportCardWithProButton")
+                                .accessibilityIdentifier(reportType == .transcript ? "unlockTranscriptWithProButton" : "unlockReportCardWithProButton")
 
                                 Text("Free plan includes Attendance, Activity Logs, and Calendar Exports. Official Report Cards & Transcripts require Pro.")
                                     .font(.caption2)

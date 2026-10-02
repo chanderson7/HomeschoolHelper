@@ -7,6 +7,8 @@ struct PlanView: View {
     @State private var showBuilder = false
     @State private var editingCourse: Course?
     @State private var courseToDelete: Course?
+    @State private var showRebalanceSheet = false
+    @State private var rebalanceTargetCourse: Course?
 
     private var studentCourses: [Course] {
         if let studentID {
@@ -108,7 +110,6 @@ struct PlanView: View {
                     Button("Add Subject", systemImage: "plus") { showBuilder = true }
                         .accessibilityIdentifier("addCourse")
                 }
-                SaveStatusToolbar()
             }
             .sheet(isPresented: $showBuilder) { SequenceBuilderView() }
             .sheet(item: $selectedCourseForRoadmap) { course in
@@ -116,6 +117,9 @@ struct PlanView: View {
             }
             .sheet(item: $editingCourse) { course in
                 EditCourseView(course: course)
+            }
+            .sheet(isPresented: $showRebalanceSheet) {
+                ScheduleRebalanceSheet(initialStudentID: studentID, initialCourseID: rebalanceTargetCourse?.id)
             }
             .confirmationDialog(
                 "Delete Subject?",
@@ -199,40 +203,132 @@ struct PlanView: View {
 
     @ViewBuilder
     private var coursesSection: some View {
-        Section("Subjects & Curricula") {
-            ForEach(studentCourses) { course in
-                CourseRowView(course: course, studentID: studentID) {
-                    selectedCourseForRoadmap = course
-                }
-                .contentShape(Rectangle())
-                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    Button(role: .destructive) {
-                        courseToDelete = course
-                    } label: {
-                        Label("Delete", systemImage: "trash")
+        Section {
+            if studentCourses.isEmpty {
+                Text("No subjects assigned to this learner yet.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(studentCourses) { course in
+                    CourseRowView(course: course, studentID: studentID) {
+                        selectedCourseForRoadmap = course
                     }
-                    .accessibilityIdentifier("deleteCourse-\(course.title)")
+                    .contentShape(Rectangle())
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button(role: .destructive) {
+                            courseToDelete = course
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                        .accessibilityIdentifier("deleteCourse-\(course.title)")
 
-                    Button {
-                        editingCourse = course
-                    } label: {
-                        Label("Edit", systemImage: "pencil")
+                        Button {
+                            editingCourse = course
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        .tint(Sage.accent)
+                        .accessibilityIdentifier("editCourse-\(course.title)")
+
+                        Button {
+                            rebalanceTargetCourse = course
+                            showRebalanceSheet = true
+                        } label: {
+                            Label("Rebalance", systemImage: "sparkles")
+                        }
+                        .tint(.orange)
+                        .accessibilityIdentifier("rebalanceCourse-\(course.title)")
                     }
-                    .tint(Sage.accent)
-                    .accessibilityIdentifier("editCourse-\(course.title)")
+                    .contextMenu {
+                        Button {
+                            rebalanceTargetCourse = course
+                            showRebalanceSheet = true
+                        } label: {
+                            Label("Rebalance Schedule", systemImage: "sparkles")
+                        }
+                        Button {
+                            editingCourse = course
+                        } label: {
+                            Label("Edit Subject Title", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) {
+                            courseToDelete = course
+                        } label: {
+                            Label("Delete Subject", systemImage: "trash")
+                        }
+                    }
                 }
-                .contextMenu {
-                    Button {
-                        editingCourse = course
-                    } label: {
-                        Label("Edit Subject Title", systemImage: "pencil")
+            }
+
+            Button {
+                #if os(iOS)
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                #endif
+                showBuilder = true
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title3)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Add Another Subject")
+                            .font(.headline.weight(.semibold))
+                        Text("Pace lessons with 4-day, 5-day, or custom rhythms")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                    Button(role: .destructive) {
-                        courseToDelete = course
-                    } label: {
-                        Label("Delete Subject", systemImage: "trash")
-                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.secondary.opacity(0.35))
                 }
+                .foregroundStyle(Sage.accent)
+                .padding(.vertical, 4)
+            }
+            .accessibilityIdentifier("addCourseInline")
+        } header: {
+            HStack(spacing: 8) {
+                Text("Subjects & Curricula")
+                Spacer()
+                Button {
+                    #if os(iOS)
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    #endif
+                    rebalanceTargetCourse = nil
+                    showRebalanceSheet = true
+                } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: "sparkles")
+                            .font(.caption2.weight(.bold))
+                        Text("Rebalance")
+                            .font(.caption.weight(.bold))
+                    }
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 3)
+                    .background(Color.orange.opacity(0.12), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("rebalanceHeaderButton")
+
+                Button {
+                    #if os(iOS)
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    #endif
+                    showBuilder = true
+                } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: "plus")
+                            .font(.caption2.weight(.bold))
+                        Text("Add")
+                            .font(.caption.weight(.bold))
+                    }
+                    .foregroundStyle(Sage.accent)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 3)
+                    .background(Sage.accent.opacity(0.12), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("addCourseHeader")
             }
         }
     }
@@ -709,6 +805,79 @@ private struct EditCourseView: View {
                         }
                     }
                 }
+                Section("Grading Categories & Weighting") {
+                    let existingCategories = store.gradeCategories(for: course.id)
+                    if existingCategories.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Equal Weighting (Default)")
+                                .font(.subheadline.weight(.semibold))
+                            Text("All assignments count equally toward the final course grade.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 2)
+
+                        Menu {
+                            Button("High School Core (50/30/20)") {
+                                applyPreset([("Tests & Exams", 0.50), ("Quizzes", 0.30), ("Homework & Daily", 0.20)])
+                            }
+                            Button("STEM & Labs (40/35/25)") {
+                                applyPreset([("Unit Exams", 0.40), ("Labs & Projects", 0.35), ("Daily Assignments", 0.25)])
+                            }
+                            Button("Elementary / Practice (30/30/40)") {
+                                applyPreset([("Assessments", 0.30), ("Quizzes", 0.30), ("Classwork & Practice", 0.40)])
+                            }
+                        } label: {
+                            Label("Apply Weighted Preset...", systemImage: "sparkles")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Sage.accent)
+                        }
+                    } else {
+                        let total = existingCategories.reduce(0) { $0 + $1.weight }
+                        let totalPercent = Int(round(total * 100))
+                        ForEach(existingCategories) { cat in
+                            HStack {
+                                Text(cat.name)
+                                    .font(.subheadline)
+                                Spacer()
+                                Text("\(Int(round(cat.weight * 100)))%")
+                                    .font(.subheadline.weight(.bold))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(Sage.accent.opacity(0.12), in: Capsule())
+                                    .foregroundStyle(Sage.accent)
+                            }
+                        }
+
+                        HStack {
+                            Text("Total Category Weight")
+                                .font(.footnote.weight(.semibold))
+                            Spacer()
+                            Text("\(totalPercent)%")
+                                .font(.footnote.bold())
+                                .foregroundStyle(totalPercent == 100 ? Color.green : Color.orange)
+                        }
+
+                        Button(role: .destructive) {
+                            for cat in existingCategories {
+                                store.deleteGradeCategory(id: cat.id)
+                            }
+                        } label: {
+                            Label("Reset to Equal Weighting", systemImage: "arrow.counterclockwise")
+                                .font(.footnote)
+                        }
+                    }
+
+                    if let firstStudent = store.state.students.first {
+                        NavigationLink {
+                            GradeBookView(course: course, student: firstStudent)
+                        } label: {
+                            Label("Open Grade Book & Edit Ledger", systemImage: "slider.horizontal.3")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(Sage.accent)
+                        }
+                    }
+                }
             }
             .navigationTitle("Edit Subject")
             .toolbar {
@@ -726,6 +895,15 @@ private struct EditCourseView: View {
                     .accessibilityIdentifier("saveEditCourse")
                 }
             }
+        }
+    }
+
+    private func applyPreset(_ list: [(String, Double)]) {
+        for cat in store.gradeCategories(for: course.id) {
+            store.deleteGradeCategory(id: cat.id)
+        }
+        for item in list {
+            store.addGradeCategory(courseID: course.id, name: item.0, weight: item.1)
         }
     }
 }
@@ -802,189 +980,13 @@ private struct AddSingleLessonView: View {
 }
 
 
-private struct LessonDraft: Identifiable {
+struct LessonDraft: Identifiable {
     let id = UUID()
-    var title = ""
+    var title: String = ""
 }
 
 struct SequenceBuilderView: View {
-    @EnvironmentObject private var store: HomeschoolStore
-    @Environment(\.dismiss) private var dismiss
-    @State private var courseTitle = ""
-    @State private var selectedStudents = Set<UUID>()
-    @State private var lessonDrafts: [LessonDraft] = [LessonDraft()]
-    @State private var datesLessons = true
-    @State private var startDate = Date()
-    @State private var weekdays: Set<Int> = [2, 3, 4, 5, 6]
-    @State private var hasCredits = false
-    @State private var creditHours: Double = 1.0
-    @State private var weight: Double = 4.0
-
-    private let weekdayNames = [(2, "Mon"), (3, "Tue"), (4, "Wed"), (5, "Thu"), (6, "Fri"), (7, "Sat"), (1, "Sun")]
-
-    private var lessonTitles: [String] {
-        lessonDrafts.map { $0.title.trimmingCharacters(in: .whitespacesAndNewlines) }
-    }
-
-    private var canCreateCourse: Bool {
-        !courseTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !selectedStudents.isEmpty &&
-        !lessonDrafts.isEmpty &&
-        lessonTitles.allSatisfy { !$0.isEmpty }
-    }
-
     var body: some View {
-        NavigationStack {
-            Form {
-                if store.presentedError != nil {
-                    Section { SaveErrorBanner() }
-                }
-                Section("Course") {
-                    TextField("Course title", text: $courseTitle)
-                        .accessibilityIdentifier("courseTitle")
-                }
-                Section {
-                    if lessonDrafts.isEmpty {
-                        ContentUnavailableView(
-                            "No Lessons Yet",
-                            systemImage: "list.bullet.rectangle",
-                            description: Text("Add the first lesson in this course.")
-                        )
-                    }
-
-                    ForEach($lessonDrafts) { $lesson in
-                        let lessonNumber = (lessonDrafts.firstIndex { $0.id == lesson.id } ?? 0) + 1
-                        HStack(spacing: 12) {
-                            Text("\(lessonNumber)")
-                                .font(.caption.bold())
-                                .foregroundStyle(Sage.accent)
-                                .frame(width: 28, height: 28)
-                                .background(Sage.accent.opacity(0.12), in: Circle())
-
-                            TextField("Lesson title", text: $lesson.title)
-                                .textInputAutocapitalization(.sentences)
-                                .accessibilityLabel("Lesson \(lessonNumber) title")
-                                .accessibilityIdentifier("lessonTitle-\(lessonNumber)")
-
-                            Button(role: .destructive) {
-                                withAnimation {
-                                    lessonDrafts.removeAll { $0.id == lesson.id }
-                                }
-                            } label: {
-                                Image(systemName: "trash")
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Delete lesson \(lessonNumber)")
-                            .accessibilityIdentifier("deleteLessonDraft-\(lessonNumber)")
-                        }
-                    }
-
-                    Button {
-                        withAnimation {
-                            lessonDrafts.append(LessonDraft())
-                        }
-                    } label: {
-                        Label("Add Another Lesson", systemImage: "plus.circle.fill")
-                    }
-                    .accessibilityIdentifier("addLessonDraft")
-                } header: {
-                    Text("Lessons")
-                } footer: {
-                    Text("Add, rename, or remove lessons individually. You can continue editing the sequence from its course roadmap after creation.")
-                }
-                Section("Learners") {
-                    if store.state.students.isEmpty {
-                        Text("Add a learner on the Family tab first.").foregroundStyle(.secondary)
-                    }
-                    ForEach(store.state.students) { student in
-                        Toggle(student.name, isOn: Binding(
-                            get: { selectedStudents.contains(student.id) },
-                            set: { enabled in
-                                if enabled {
-                                    selectedStudents.insert(student.id)
-                                } else {
-                                    selectedStudents.remove(student.id)
-                                }
-                            }
-                        ))
-                        .accessibilityIdentifier("courseStudent-\(student.name)")
-                    }
-                }
-                Section("Schedule") {
-                    Toggle("Put lessons on a calendar", isOn: $datesLessons)
-                        .accessibilityIdentifier("datedLessonSchedule")
-                    if datesLessons {
-                        DatePicker("Start date", selection: $startDate, displayedComponents: .date)
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 58), spacing: 8)], spacing: 8) {
-                            ForEach(weekdayNames, id: \.0) { weekday in
-                                Button(weekday.1) {
-                                    if weekdays.contains(weekday.0) { weekdays.remove(weekday.0) } else { weekdays.insert(weekday.0) }
-                                }
-                                .buttonStyle(.bordered)
-                                .tint(weekdays.contains(weekday.0) ? Sage.accent : .gray)
-                                .accessibilityLabel("\(weekday.1) school day")
-                                .accessibilityValue(weekdays.contains(weekday.0) ? "Selected" : "Not selected")
-                            }
-                        }
-                    } else {
-                        Text("Flexible lessons will be available in Plan without a date.").font(.footnote).foregroundStyle(.secondary)
-                    }
-                }
-                Section("High School & Academic Transcript (Optional)") {
-                    Toggle("Award Academic Credits", isOn: $hasCredits)
-                        .accessibilityIdentifier("sequenceHasCreditsToggle")
-                    if hasCredits {
-                        HStack {
-                            Text("Credit Hours")
-                            Spacer()
-                            Picker("Credit Hours", selection: $creditHours) {
-                                Text("0.25 Credit (Quarter Year)").tag(0.25)
-                                Text("0.50 Credit (One Semester)").tag(0.5)
-                                Text("1.00 Credit (Full Year)").tag(1.0)
-                                Text("1.50 Credits").tag(1.5)
-                                Text("2.00 Credits").tag(2.0)
-                            }
-                            .pickerStyle(.menu)
-                            .accessibilityIdentifier("sequenceCreditHoursPicker")
-                        }
-                        HStack {
-                            Text("GPA Weight Scale")
-                            Spacer()
-                            Picker("GPA Weight Scale", selection: $weight) {
-                                Text("Standard (4.0)").tag(4.0)
-                                Text("Honors (+0.5 / 4.5)").tag(4.5)
-                                Text("AP / College (+1.0 / 5.0)").tag(5.0)
-                            }
-                            .pickerStyle(.menu)
-                            .accessibilityIdentifier("sequenceWeightPicker")
-                        }
-                    }
-                }
-            }
-            .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("Build Sequence")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: dismiss.callAsFunction) }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") {
-                        let credits = hasCredits ? creditHours : nil
-                        let w = hasCredits ? weight : nil
-                        if store.addCourse(
-                            title: courseTitle,
-                            studentIDs: Array(selectedStudents),
-                            lessonTitles: lessonTitles,
-                            startDay: datesLessons ? SchoolDate.string(startDate) : nil,
-                            weekdays: weekdays,
-                            creditHours: credits,
-                            weight: w
-                        ) {
-                            dismiss()
-                        }
-                    }
-                    .disabled(!canCreateCourse)
-                    .accessibilityIdentifier("saveCourse")
-                }
-            }
-        }
+        SequenceBuilderTabsView()
     }
 }

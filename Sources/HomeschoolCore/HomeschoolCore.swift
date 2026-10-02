@@ -403,13 +403,103 @@ public struct PacedRescheduleResult: Codable, Equatable, Sendable {
     public let rescheduledCount: Int
     public let affectedCoursesCount: Int
     public let newCompletionDay: String?
+    public let overdueRescheduledCount: Int
+    public let futureShiftedCount: Int
 
-    public init(rescheduledCount: Int, affectedCoursesCount: Int, newCompletionDay: String?) {
+    public init(
+        rescheduledCount: Int,
+        affectedCoursesCount: Int,
+        newCompletionDay: String?,
+        overdueRescheduledCount: Int = 0,
+        futureShiftedCount: Int = 0
+    ) {
         self.rescheduledCount = rescheduledCount
         self.affectedCoursesCount = affectedCoursesCount
         self.newCompletionDay = newCompletionDay
+        self.overdueRescheduledCount = overdueRescheduledCount
+        self.futureShiftedCount = futureShiftedCount
     }
 }
+
+// MARK: - Life Happens Auto-Rebalance Models
+
+public enum ScheduleRebalanceStrategy: String, CaseIterable, Identifiable, Codable, Sendable {
+    case pushByDays = "Push Forward by Days"
+    case resumeToday = "Resume Sequence from Today"
+    case skipBreak = "Skip Vacation / Break Window"
+    case distributeToEndDate = "Evenly Distribute to End Date"
+
+    public var id: String { rawValue }
+}
+
+public struct ScheduleRebalanceRequest: Codable, Equatable, Sendable {
+    public var studentID: UUID?
+    public var courseID: UUID?
+    public var strategy: ScheduleRebalanceStrategy
+    public var startDay: String
+    public var pushDaysCount: Int
+    public var breakEndDay: String?
+    public var targetFinishDay: String?
+    public var weekdays: Set<Int>
+
+    public init(
+        studentID: UUID? = nil,
+        courseID: UUID? = nil,
+        strategy: ScheduleRebalanceStrategy = .pushByDays,
+        startDay: String,
+        pushDaysCount: Int = 3,
+        breakEndDay: String? = nil,
+        targetFinishDay: String? = nil,
+        weekdays: Set<Int> = [2, 3, 4, 5, 6]
+    ) {
+        self.studentID = studentID
+        self.courseID = courseID
+        self.strategy = strategy
+        self.startDay = startDay
+        self.pushDaysCount = pushDaysCount
+        self.breakEndDay = breakEndDay
+        self.targetFinishDay = targetFinishDay
+        self.weekdays = weekdays
+    }
+}
+
+public struct CourseRebalanceDetail: Codable, Equatable, Sendable, Identifiable {
+    public var id: UUID { courseID }
+    public let courseID: UUID
+    public let courseTitle: String
+    public let rescheduledLessonCount: Int
+    public let newProjectedEndDay: String?
+
+    public init(courseID: UUID, courseTitle: String, rescheduledLessonCount: Int, newProjectedEndDay: String?) {
+        self.courseID = courseID
+        self.courseTitle = courseTitle
+        self.rescheduledLessonCount = rescheduledLessonCount
+        self.newProjectedEndDay = newProjectedEndDay
+    }
+}
+
+public struct ScheduleRebalanceResult: Codable, Equatable, Sendable {
+    public let rescheduledCount: Int
+    public let affectedCoursesCount: Int
+    public let previousFinishDay: String?
+    public let newFinishDay: String?
+    public let courseDetails: [CourseRebalanceDetail]
+
+    public init(
+        rescheduledCount: Int,
+        affectedCoursesCount: Int,
+        previousFinishDay: String?,
+        newFinishDay: String?,
+        courseDetails: [CourseRebalanceDetail]
+    ) {
+        self.rescheduledCount = rescheduledCount
+        self.affectedCoursesCount = affectedCoursesCount
+        self.previousFinishDay = previousFinishDay
+        self.newFinishDay = newFinishDay
+        self.courseDetails = courseDetails
+    }
+}
+
 
 public struct StateCompliancePreset: Codable, Equatable, Sendable, Identifiable {
     public var id: String { code }
@@ -1632,6 +1722,8 @@ public struct SchoolState: Codable, Equatable, Sendable {
         }
 
         var totalRescheduled = 0
+        var totalOverdueRescheduled = 0
+        var totalFutureShifted = 0
         var affectedCourses = Set<UUID>()
         var maxNewDay: String? = nil
 
@@ -1669,6 +1761,12 @@ public struct SchoolState: Codable, Equatable, Sendable {
                     let targetDay = newDays[index]
                     if let assignmentIndex = assignments.firstIndex(where: { $0.id == assignment.id }) {
                         if assignments[assignmentIndex].scheduledDay != targetDay {
+                            let wasOverdue = (assignments[assignmentIndex].scheduledDay ?? "") < startDay
+                            if wasOverdue {
+                                totalOverdueRescheduled += 1
+                            } else {
+                                totalFutureShifted += 1
+                            }
                             assignments[assignmentIndex].scheduledDay = targetDay
                             totalRescheduled += 1
                         }
@@ -1686,7 +1784,189 @@ public struct SchoolState: Codable, Equatable, Sendable {
         return PacedRescheduleResult(
             rescheduledCount: totalRescheduled,
             affectedCoursesCount: affectedCourses.count,
-            newCompletionDay: maxNewDay
+            newCompletionDay: maxNewDay,
+            overdueRescheduledCount: totalOverdueRescheduled,
+            futureShiftedCount: totalFutureShifted
+        )
+    }
+
+    @discardableResult
+    public mutating func rebalanceSchedule(request: ScheduleRebalanceRequest) throws -> ScheduleRebalanceResult {
+        try validate()
+        try validateDay(request.startDay)
+        if let breakEndDay = request.breakEndDay {
+            try validateDay(breakEndDay)
+        }
+        if let targetFinishDay = request.targetFinishDay {
+            try validateDay(targetFinishDay)
+        }
+        guard !request.weekdays.isEmpty, request.weekdays.allSatisfy({ (1...7).contains($0) }) else {
+            throw SchoolStateError.invalidValue("Schedule rebalancing requires one or more weekdays numbered 1 through 7.")
+        }
+
+        if let studentID = request.studentID {
+            guard students.contains(where: { $0.id == studentID }) else {
+                throw SchoolStateError.unknownStudent(studentID)
+            }
+        }
+
+        if let courseID = request.courseID {
+            guard courses.contains(where: { $0.id == courseID }) else {
+                throw SchoolStateError.unknownCourse(courseID)
+            }
+        }
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+
+        let targetStudentIDs: [UUID]
+        if let studentID = request.studentID {
+            targetStudentIDs = [studentID]
+        } else {
+            targetStudentIDs = students.map(\.id)
+        }
+
+        let targetCourses: [Course]
+        if let courseID = request.courseID {
+            targetCourses = courses.filter { $0.id == courseID }
+        } else {
+            targetCourses = courses
+        }
+
+        let lessonMap = Dictionary(uniqueKeysWithValues: lessons.map { ($0.id, $0) })
+
+        let targetCourseIDs = Set(targetCourses.map(\.id))
+        let targetStudentSet = Set(targetStudentIDs)
+        let priorUncompleted = assignments.filter { a in
+            guard targetStudentSet.contains(a.studentID) else { return false }
+            guard let l = lessonMap[a.lessonID], targetCourseIDs.contains(l.courseID) else { return false }
+            guard a.status != .completed && a.status != .skipped else { return false }
+            return a.scheduledDay != nil
+        }
+        let previousFinishDay = priorUncompleted.compactMap(\.scheduledDay).max()
+
+        var totalRescheduled = 0
+        var affectedCourses = Set<UUID>()
+        var courseDetails: [CourseRebalanceDetail] = []
+
+        for course in targetCourses {
+            var courseRescheduled = 0
+
+            for studentID in targetStudentIDs {
+                let studentCourseAssignments = assignments.filter { a in
+                    guard a.studentID == studentID else { return false }
+                    guard let l = lessonMap[a.lessonID], l.courseID == course.id else { return false }
+                    guard a.status != .completed && a.status != .skipped else { return false }
+                    return a.scheduledDay != nil
+                }
+
+                guard !studentCourseAssignments.isEmpty else { continue }
+
+                let sortedAssignments = studentCourseAssignments.sorted { a1, a2 in
+                    let seq1 = lessonMap[a1.lessonID]?.sequence ?? 0
+                    let seq2 = lessonMap[a2.lessonID]?.sequence ?? 0
+                    if seq1 != seq2 { return seq1 < seq2 }
+                    return (a1.scheduledDay ?? "") < (a2.scheduledDay ?? "")
+                }
+
+                switch request.strategy {
+                case .pushByDays:
+                    let pushCount = max(1, request.pushDaysCount)
+                    for assignment in sortedAssignments {
+                        guard let curDay = assignment.scheduledDay, curDay >= request.startDay else { continue }
+                        let targetDay = try shiftDayBySchoolDays(day: curDay, daysCount: pushCount, weekdays: request.weekdays, calendar: calendar)
+                        if let idx = assignments.firstIndex(where: { $0.id == assignment.id }) {
+                            if assignments[idx].scheduledDay != targetDay {
+                                assignments[idx].scheduledDay = targetDay
+                                courseRescheduled += 1
+                                totalRescheduled += 1
+                            }
+                        }
+                    }
+
+                case .resumeToday:
+                    let newDays = try scheduledDaysFrom(startDay: request.startDay, count: sortedAssignments.count, weekdays: request.weekdays)
+                    for (index, assignment) in sortedAssignments.enumerated() {
+                        let targetDay = newDays[index]
+                        if let idx = assignments.firstIndex(where: { $0.id == assignment.id }) {
+                            if assignments[idx].scheduledDay != targetDay {
+                                assignments[idx].scheduledDay = targetDay
+                                courseRescheduled += 1
+                                totalRescheduled += 1
+                            }
+                        }
+                    }
+
+                case .skipBreak:
+                    let breakEnd = request.breakEndDay ?? request.startDay
+                    let breakDays = try schoolDaysCount(from: request.startDay, to: breakEnd, weekdays: request.weekdays, calendar: calendar)
+                    let shiftCount = max(1, breakDays)
+                    for assignment in sortedAssignments {
+                        guard let curDay = assignment.scheduledDay, curDay >= request.startDay else { continue }
+                        let targetDay = try shiftDayBySchoolDays(day: curDay, daysCount: shiftCount, weekdays: request.weekdays, calendar: calendar)
+                        if let idx = assignments.firstIndex(where: { $0.id == assignment.id }) {
+                            if assignments[idx].scheduledDay != targetDay {
+                                assignments[idx].scheduledDay = targetDay
+                                courseRescheduled += 1
+                                totalRescheduled += 1
+                            }
+                        }
+                    }
+
+                case .distributeToEndDate:
+                    let endDay = request.targetFinishDay ?? request.startDay
+                    let newDays = try distributeLessons(
+                        startDay: request.startDay,
+                        endDay: endDay,
+                        count: sortedAssignments.count,
+                        weekdays: request.weekdays,
+                        calendar: calendar
+                    )
+                    for (index, assignment) in sortedAssignments.enumerated() {
+                        let targetDay = newDays[index]
+                        if let idx = assignments.firstIndex(where: { $0.id == assignment.id }) {
+                            if assignments[idx].scheduledDay != targetDay {
+                                assignments[idx].scheduledDay = targetDay
+                                courseRescheduled += 1
+                                totalRescheduled += 1
+                            }
+                        }
+                    }
+                }
+            }
+
+            let newCourseEnd = assignments.filter { a in
+                guard targetStudentSet.contains(a.studentID) else { return false }
+                guard let l = lessonMap[a.lessonID], l.courseID == course.id else { return false }
+                return a.status != .completed && a.status != .skipped
+            }.compactMap(\.scheduledDay).max()
+
+            if courseRescheduled > 0 {
+                affectedCourses.insert(course.id)
+            }
+
+            courseDetails.append(CourseRebalanceDetail(
+                courseID: course.id,
+                courseTitle: course.title,
+                rescheduledLessonCount: courseRescheduled,
+                newProjectedEndDay: newCourseEnd
+            ))
+        }
+
+        let newFinishDay = assignments.filter { a in
+            guard targetStudentSet.contains(a.studentID) else { return false }
+            guard let l = lessonMap[a.lessonID], targetCourseIDs.contains(l.courseID) else { return false }
+            return a.status != .completed && a.status != .skipped
+        }.compactMap(\.scheduledDay).max()
+
+        try validate()
+
+        return ScheduleRebalanceResult(
+            rescheduledCount: totalRescheduled,
+            affectedCoursesCount: affectedCourses.count,
+            previousFinishDay: previousFinishDay,
+            newFinishDay: newFinishDay,
+            courseDetails: courseDetails
         )
     }
 
@@ -2264,7 +2544,7 @@ private func unique(_ values: [UUID]) -> [UUID] {
     return values.filter { seen.insert($0).inserted }
 }
 
-private func scheduledDaysFrom(startDay: String, count: Int, weekdays: Set<Int>) throws -> [String?] {
+func scheduledDaysFrom(startDay: String, count: Int, weekdays: Set<Int>) throws -> [String?] {
     guard count > 0 else { return [] }
     var calendar = Calendar(identifier: .gregorian)
     calendar.locale = Locale(identifier: "en_US_POSIX")
@@ -2293,6 +2573,103 @@ private func scheduledDaysFrom(startDay: String, count: Int, weekdays: Set<Int>)
     }
     return result
 }
+
+private func nextEligibleWeekdayAfter(day: String, weekdays: Set<Int>, calendar: Calendar) throws -> String {
+    let values = day.split(separator: "-").compactMap { Int($0) }
+    guard values.count == 3,
+          let initialDate = calendar.date(from: DateComponents(year: values[0], month: values[1], day: values[2])) else {
+        throw SchoolStateError.invalidDate(day)
+    }
+    var current = initialDate
+    var safety = 0
+    while safety < 365 {
+        safety += 1
+        guard let next = calendar.date(byAdding: .day, value: 1, to: current) else {
+            throw SchoolStateError.invalidDate(day)
+        }
+        current = next
+        if weekdays.contains(calendar.component(.weekday, from: current)) {
+            return SchoolDay.string(from: current, calendar: calendar)
+        }
+    }
+    throw SchoolStateError.invalidValue("Could not find next eligible weekday within 365 days.")
+}
+
+private func distributeLessons(
+    startDay: String,
+    endDay: String,
+    count: Int,
+    weekdays: Set<Int>,
+    calendar: Calendar
+) throws -> [String?] {
+    guard count > 0 else { return [] }
+    let valuesStart = startDay.split(separator: "-").compactMap { Int($0) }
+    let valuesEnd = endDay.split(separator: "-").compactMap { Int($0) }
+    guard valuesStart.count == 3, valuesEnd.count == 3,
+          let sDate = calendar.date(from: DateComponents(year: valuesStart[0], month: valuesStart[1], day: valuesStart[2])),
+          let eDate = calendar.date(from: DateComponents(year: valuesEnd[0], month: valuesEnd[1], day: valuesEnd[2])) else {
+        throw SchoolStateError.invalidDate(startDay)
+    }
+
+    var availableDays: [String] = []
+    var cur = sDate
+    while cur <= eDate {
+        if weekdays.contains(calendar.component(.weekday, from: cur)) {
+            availableDays.append(SchoolDay.string(from: cur, calendar: calendar))
+        }
+        guard let next = calendar.date(byAdding: .day, value: 1, to: cur) else { break }
+        cur = next
+    }
+
+    if availableDays.isEmpty || count >= availableDays.count {
+        return try scheduledDaysFrom(startDay: startDay, count: count, weekdays: weekdays)
+    }
+
+    var result: [String?] = []
+    result.reserveCapacity(count)
+    let totalSlots = availableDays.count
+    for i in 0..<count {
+        let slotIndex = Int(round(Double(i) * Double(totalSlots - 1) / Double(max(1, count - 1))))
+        result.append(availableDays[min(slotIndex, totalSlots - 1)])
+    }
+    return result
+}
+
+private func maxDayOptional(_ a: String?, _ b: String?) -> String? {
+    guard let a else { return b }
+    guard let b else { return a }
+    return max(a, b)
+}
+
+func shiftDayBySchoolDays(day: String, daysCount: Int, weekdays: Set<Int>, calendar: Calendar) throws -> String {
+    guard daysCount > 0 else { return day }
+    let sequence = try scheduledDaysFrom(startDay: day, count: daysCount + 1, weekdays: weekdays)
+    return sequence.last.flatMap { $0 } ?? day
+}
+
+func schoolDaysCount(from startDay: String, to endDay: String, weekdays: Set<Int>, calendar: Calendar) throws -> Int {
+    let valuesStart = startDay.split(separator: "-").compactMap { Int($0) }
+    let valuesEnd = endDay.split(separator: "-").compactMap { Int($0) }
+    guard valuesStart.count == 3, valuesEnd.count == 3,
+          let sDate = calendar.date(from: DateComponents(year: valuesStart[0], month: valuesStart[1], day: valuesStart[2])),
+          let eDate = calendar.date(from: DateComponents(year: valuesEnd[0], month: valuesEnd[1], day: valuesEnd[2])) else {
+        throw SchoolStateError.invalidDate(startDay)
+    }
+    guard sDate <= eDate else { return 0 }
+    var cur = sDate
+    var count = 0
+    var safety = 0
+    while cur <= eDate && safety < 1000 {
+        safety += 1
+        if weekdays.contains(calendar.component(.weekday, from: cur)) {
+            count += 1
+        }
+        guard let next = calendar.date(byAdding: .day, value: 1, to: cur) else { break }
+        cur = next
+    }
+    return count
+}
+
 
 public enum HomeschoolCalendarGenerator {
     public static func generateICS(

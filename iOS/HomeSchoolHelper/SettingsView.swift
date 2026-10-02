@@ -10,7 +10,6 @@ struct SettingsView: View {
     @EnvironmentObject private var store: HomeschoolStore
     @Environment(\.signedInIdentity) private var identity: AuthIdentity?
 
-    @AppStorage("app_appearance") private var appearancePreference: String = "system"
     @AppStorage("default_cadence") private var defaultCadence: String = "schoolDays"
     @AppStorage("haptics_enabled") private var hapticsEnabled: Bool = true
 
@@ -19,6 +18,7 @@ struct SettingsView: View {
     @State private var showAccount = false
     @State private var showPaywall = false
     @State private var showManageSubscriptions = false
+    @State private var showIntroGuide = false
     @State private var selectedLegalDocument: LegalDocumentType?
     @State private var confirmSignOut = false
     @State private var confirmEraseLocalData = false
@@ -179,15 +179,8 @@ struct SettingsView: View {
                     }
                 }
 
-                // 2. Preferences & Appearance
+                // 2. Preferences
                 Section("Preferences") {
-                    Picker("Appearance", selection: $appearancePreference) {
-                        Text("System").tag("system")
-                        Text("Light").tag("light")
-                        Text("Dark").tag("dark")
-                    }
-                    .accessibilityIdentifier("appearancePicker")
-
                     Picker("Default Schedule", selection: $defaultCadence) {
                         Text("Weekdays (Mon–Fri)").tag("schoolDays")
                         Text("Flexible (Own Pace)").tag("flexible")
@@ -289,6 +282,23 @@ struct SettingsView: View {
                     .accessibilityIdentifier("settingsEraseLocalDataButton")
                 }
 
+                // Help & Guides
+                Section("Help & Guides") {
+                    Button {
+                        showIntroGuide = true
+                    } label: {
+                        HStack {
+                            Label("Welcome & Onboarding Guide", systemImage: "book.pages")
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .accessibilityIdentifier("openIntroGuide")
+                }
+
                 // 4. Legal & Privacy Policies
                 Section("Legal & Privacy") {
                     Link(destination: LegalLinks.privacyPolicy) {
@@ -385,6 +395,9 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showPaywall) {
                 PaywallView()
+            }
+            .sheet(isPresented: $showIntroGuide) {
+                OnboardingView(onExplore: { showIntroGuide = false })
             }
             .confirmationDialog("Are you sure you want to sign out?", isPresented: $confirmSignOut, titleVisibility: .visible) {
                 Button("Sign Out", role: .destructive) {

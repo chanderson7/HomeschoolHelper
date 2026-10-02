@@ -444,12 +444,12 @@ struct AddBookView: View {
                     }
                 }
 
-                Section("Book Details") {
-                    TextField("Title (e.g., Charlotte's Web)", text: $title)
+                Section {
+                    TextField("Title * (Required)", text: $title)
                         .accessibilityIdentifier("bookTitleInput")
-                    TextField("Author (e.g., E.B. White)", text: $author)
+                    TextField("Author * (Required)", text: $author)
                         .accessibilityIdentifier("bookAuthorInput")
-                    TextField("Genre (e.g., Classic Fiction, Science)", text: $genre)
+                    TextField("Genre (Optional)", text: $genre)
                         .accessibilityIdentifier("bookGenreInput")
 
                     HStack {
@@ -477,6 +477,16 @@ struct AddBookView: View {
                         ForEach(BookStatus.allCases) { st in
                             Text(st.rawValue).tag(st)
                         }
+                    }
+                } header: {
+                    Text("Book Details")
+                } footer: {
+                    if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text("Title and Author are required to add a book to the reading log.")
+                            .foregroundStyle(.orange)
+                    } else {
+                        Text("Title and Author are required to add a book.")
+                            .foregroundStyle(.secondary)
                     }
                 }
 
@@ -1103,10 +1113,10 @@ struct EditBookView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Book Details") {
-                    TextField("Title", text: $title)
-                    TextField("Author", text: $author)
-                    TextField("Genre", text: $genre)
+                Section {
+                    TextField("Title * (Required)", text: $title)
+                    TextField("Author * (Required)", text: $author)
+                    TextField("Genre (Optional)", text: $genre)
 
                     HStack {
                         TextField("ISBN (Optional)", text: $isbn)
@@ -1132,6 +1142,16 @@ struct EditBookView: View {
                         ForEach(BookStatus.allCases) { st in
                             Text(st.rawValue).tag(st)
                         }
+                    }
+                } header: {
+                    Text("Book Details")
+                } footer: {
+                    if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text("Title and Author are required to save changes.")
+                            .foregroundStyle(.orange)
+                    } else {
+                        Text("Title and Author are required.")
+                            .foregroundStyle(.secondary)
                     }
                 }
 

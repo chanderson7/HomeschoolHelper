@@ -712,6 +712,35 @@ final class SchoolStateTests: XCTestCase {
         XCTAssertNoThrow(try state.validate())
     }
 
+    func testPacedReschedulingSeparatesOverdueFromFutureShifted() throws {
+        var state = SchoolState()
+        let alice = try state.addStudent(name: "Alice", gradeLevel: "5")
+        _ = try state.addCourse(
+            title: "Math",
+            studentIDs: [alice],
+            lessonTitles: ["L1", "L2", "L3", "L4"],
+            startDay: "2026-09-24", // L1 on Thu Sep 24 (overdue relative to startDay Sep 25)
+            weekdays: [2, 3, 4, 5, 6]
+        )
+
+        // L1 is on 2026-09-24 (overdue)
+        // L2 is on 2026-09-25 (today)
+        // L3 is on 2026-09-28 (future Mon)
+        // L4 is on 2026-09-29 (future Tue)
+        let result = try state.rescheduleOverduePaced(
+            from: "2026-09-25",
+            studentID: alice,
+            weekdays: [2, 3, 4, 5, 6]
+        )
+
+        XCTAssertEqual(result.overdueRescheduledCount, 1)
+        XCTAssertEqual(result.futureShiftedCount, 3)
+        XCTAssertEqual(result.rescheduledCount, 4)
+        XCTAssertEqual(result.affectedCoursesCount, 1)
+        XCTAssertEqual(result.newCompletionDay, "2026-09-30")
+        XCTAssertNoThrow(try state.validate())
+    }
+
     func testStateCompliancePresetsCoverageAll50States() throws {
         XCTAssertGreaterThanOrEqual(StateCompliancePreset.allStates.count, 51)
 
@@ -1298,4 +1327,172 @@ final class SchoolStateTests: XCTestCase {
         XCTAssertEqual(sample, decoded)
         XCTAssertNoThrow(try decoded.validate())
     }
+
+    func testRebalanceSchedulePushByDaysSkipsWeekends() throws {
+        var state = SchoolState()
+        let studentID = try state.addStudent(name: "Leo", gradeLevel: "3")
+        let courseID = try state.addCourse(
+            title: "Math 3",
+            studentIDs: [studentID],
+            lessonTitles: ["Lesson 1", "Lesson 2", "Lesson 3", "Lesson 4"],
+            startDay: "2026-10-05", // Mon
+            weekdays: [2, 3, 4, 5, 6] // Mon-Fri
+        )
+
+        // Mon Oct 5 (L1), Tue Oct 6 (L2), Wed Oct 7 (L3), Thu Oct 8 (L4)
+        // Rebalance: push forward by 3 days starting from Tue Oct 6
+        let request = ScheduleRebalanceRequest(
+            studentID: studentID,
+            courseID: courseID,
+            strategy: .pushByDays,
+            startDay: "2026-10-06",
+            pushDaysCount: 3,
+            weekdays: [2, 3, 4, 5, 6]
+        )
+
+        let result = try state.rebalanceSchedule(request: request)
+        XCTAssertEqual(result.rescheduledCount, 3)
+        XCTAssertEqual(result.affectedCoursesCount, 1)
+        XCTAssertEqual(result.previousFinishDay, "2026-10-08")
+        XCTAssertEqual(result.newFinishDay, "2026-10-13")
+
+        let sorted = state.assignments.sorted { a1, a2 in
+            let seq1 = state.lessons.first(where: { $0.id == a1.lessonID })?.sequence ?? 0
+            let seq2 = state.lessons.first(where: { $0.id == a2.lessonID })?.sequence ?? 0
+            return seq1 < seq2
+        }
+
+        XCTAssertEqual(sorted[0].scheduledDay, "2026-10-05") // unchanged (before startDay)
+        XCTAssertEqual(sorted[1].scheduledDay, "2026-10-09") // Tue + 3 school days = Fri
+        XCTAssertEqual(sorted[2].scheduledDay, "2026-10-12") // Wed + 3 school days = Mon (skips weekend)
+        XCTAssertEqual(sorted[3].scheduledDay, "2026-10-13") // Thu + 3 school days = Tue
+        XCTAssertNoThrow(try state.validate())
+    }
+
+    func testRebalanceScheduleResumeTodayPreservesCompletedAndSequencesConsecutively() throws {
+        var state = SchoolState()
+        let studentID = try state.addStudent(name: "Mia", gradeLevel: "5")
+        let courseID = try state.addCourse(
+            title: "Science 5",
+            studentIDs: [studentID],
+            lessonTitles: ["L1", "L2", "L3", "L4"],
+            startDay: "2026-09-01",
+            weekdays: [2, 3, 4, 5, 6]
+        )
+
+        let sorted = state.assignments.sorted { a1, a2 in
+            let seq1 = state.lessons.first(where: { $0.id == a1.lessonID })?.sequence ?? 0
+            let seq2 = state.lessons.first(where: { $0.id == a2.lessonID })?.sequence ?? 0
+            return seq1 < seq2
+        }
+
+        // Mark L1 completed
+        try state.setAssignmentStatus(id: sorted[0].id, status: .completed, completedDay: "2026-09-01")
+
+        // Resume remaining from Monday 2026-10-05
+        let request = ScheduleRebalanceRequest(
+            studentID: studentID,
+            courseID: courseID,
+            strategy: .resumeToday,
+            startDay: "2026-10-05",
+            weekdays: [2, 3, 4, 5, 6]
+        )
+
+        let result = try state.rebalanceSchedule(request: request)
+        XCTAssertEqual(result.rescheduledCount, 3)
+
+        let updated = state.assignments.sorted { a1, a2 in
+            let seq1 = state.lessons.first(where: { $0.id == a1.lessonID })?.sequence ?? 0
+            let seq2 = state.lessons.first(where: { $0.id == a2.lessonID })?.sequence ?? 0
+            return seq1 < seq2
+        }
+
+        XCTAssertEqual(updated[0].scheduledDay, "2026-09-01") // Completed remains fixed
+        XCTAssertEqual(updated[1].scheduledDay, "2026-10-05") // Mon
+        XCTAssertEqual(updated[2].scheduledDay, "2026-10-06") // Tue
+        XCTAssertEqual(updated[3].scheduledDay, "2026-10-07") // Wed
+        XCTAssertEqual(result.newFinishDay, "2026-10-07")
+        XCTAssertNoThrow(try state.validate())
+    }
+
+    func testRebalanceScheduleSkipBreakClearsVacationWindow() throws {
+        var state = SchoolState()
+        let studentID = try state.addStudent(name: "Sam", gradeLevel: "1")
+        let courseID = try state.addCourse(
+            title: "Reading 1",
+            studentIDs: [studentID],
+            lessonTitles: ["L1", "L2", "L3", "L4"],
+            startDay: "2026-12-21", // Mon
+            weekdays: [2, 3, 4, 5, 6]
+        )
+
+        // Lessons are 2026-12-21 (Mon) through 2026-12-24 (Thu)
+        // Break: 2026-12-21 through 2026-12-25 (5 school days)
+        let request = ScheduleRebalanceRequest(
+            studentID: studentID,
+            courseID: courseID,
+            strategy: .skipBreak,
+            startDay: "2026-12-21",
+            breakEndDay: "2026-12-25",
+            weekdays: [2, 3, 4, 5, 6]
+        )
+
+        let result = try state.rebalanceSchedule(request: request)
+        XCTAssertEqual(result.rescheduledCount, 4)
+
+        let updated = state.assignments.sorted { a1, a2 in
+            let seq1 = state.lessons.first(where: { $0.id == a1.lessonID })?.sequence ?? 0
+            let seq2 = state.lessons.first(where: { $0.id == a2.lessonID })?.sequence ?? 0
+            return seq1 < seq2
+        }
+
+        // None should fall on Dec 21-25
+        for a in updated {
+            let day = try XCTUnwrap(a.scheduledDay)
+            XCTAssertFalse(("2026-12-21"..."2026-12-25").contains(day), "Lesson day \(day) should not be in break")
+        }
+
+        XCTAssertEqual(updated[0].scheduledDay, "2026-12-28") // Mon
+        XCTAssertEqual(updated[1].scheduledDay, "2026-12-29") // Tue
+        XCTAssertEqual(updated[2].scheduledDay, "2026-12-30") // Wed
+        XCTAssertEqual(updated[3].scheduledDay, "2026-12-31") // Thu
+        XCTAssertNoThrow(try state.validate())
+    }
+
+    func testRebalanceScheduleDistributeToEndDate() throws {
+        var state = SchoolState()
+        let studentID = try state.addStudent(name: "Ava", gradeLevel: "7")
+        let courseID = try state.addCourse(
+            title: "History 7",
+            studentIDs: [studentID],
+            lessonTitles: ["L1", "L2", "L3"],
+            startDay: "2026-10-05", // Mon
+            weekdays: [2, 3, 4, 5, 6]
+        )
+
+        let request = ScheduleRebalanceRequest(
+            studentID: studentID,
+            courseID: courseID,
+            strategy: .distributeToEndDate,
+            startDay: "2026-10-05",
+            targetFinishDay: "2026-10-09", // Fri
+            weekdays: [2, 3, 4, 5, 6]
+        )
+
+        let result = try state.rebalanceSchedule(request: request)
+        XCTAssertEqual(result.rescheduledCount, 2) // L1 was already 10-05, L2/L3 adjusted
+        XCTAssertEqual(result.newFinishDay, "2026-10-09")
+
+        let updated = state.assignments.sorted { a1, a2 in
+            let seq1 = state.lessons.first(where: { $0.id == a1.lessonID })?.sequence ?? 0
+            let seq2 = state.lessons.first(where: { $0.id == a2.lessonID })?.sequence ?? 0
+            return seq1 < seq2
+        }
+
+        XCTAssertEqual(updated[0].scheduledDay, "2026-10-05")
+        XCTAssertEqual(updated[1].scheduledDay, "2026-10-07")
+        XCTAssertEqual(updated[2].scheduledDay, "2026-10-09")
+        XCTAssertNoThrow(try state.validate())
+    }
 }
+
